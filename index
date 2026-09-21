@@ -243,7 +243,7 @@ ul.envios li:last-child{border-bottom:0}
    de servidor. Todo ocurre en el navegador de quien la abre.
 
    Organización del archivo:
-     1. Utilidades          2. Almacenamiento     3. Datos de ejemplo
+     1. Utilidades          2. Almacenamiento     3. Datos de ejemplos
      4. Sesión y navegación 5. Vistas             6. Ficha del paciente
      7. Reportes en PDF     8. Envíos             9. Configuración y arranque
 =========================================================================== */
