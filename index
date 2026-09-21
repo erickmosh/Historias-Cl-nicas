@@ -1,0 +1,2917 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Historias clínicas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<!-- Generación de PDF en el propio navegador. Si no hay conexión la primera vez,
+     la app sigue funcionando y ofrece "Imprimir a PDF" como alternativa. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+/* ---------------------------------------------------------------------------
+   Paleta y tipografía
+   Verde apagado sobre lienzo frío: legible durante horas, sin el azul clínico
+   de manual. Serif solo en titulares, para que el nombre del paciente pese.
+---------------------------------------------------------------------------- */
+:root{
+  --tinta:#17212b; --lienzo:#f2f5f4; --blanco:#fff;
+  --verde:#2f6f62; --verde-claro:#eef3f1; --verde-oscuro:#245349;
+  --ambar:#a66a00; --granate:#9b2c2c;
+  --borde:#dde4e2; --apagado:#55635f;
+  --r:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--lienzo); color:var(--tinta);
+  font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.serif{font-family:"Source Serif 4",Georgia,serif;font-weight:600;margin:0}
+h1{font-size:24px} h2{font-size:17px} h3{font-size:15px}
+p{margin:0}
+a{color:var(--verde)}
+:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+button{font:inherit}
+[hidden]{display:none !important}
+
+/* --- Estructura --- */
+.app{display:flex;min-height:100vh;flex-direction:column}
+@media(min-width:768px){.app{flex-direction:row}}
+.lateral{background:var(--tinta);color:#fff;flex-shrink:0}
+@media(min-width:768px){.lateral{width:232px;display:flex;flex-direction:column}}
+.lateral .marca{padding:20px 20px 16px}
+.lateral .marca p:first-child{font-family:"Source Serif 4",Georgia,serif;font-size:17px;font-weight:600}
+.lateral .marca p:last-child{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
+.nav{display:flex;gap:4px;overflow-x:auto;padding:0 12px 12px}
+@media(min-width:768px){.nav{flex-direction:column;overflow:visible}}
+.nav button{
+  display:flex;align-items:center;gap:10px;white-space:nowrap;width:100%;
+  background:none;border:0;color:rgba(255,255,255,.7);padding:9px 12px;
+  border-radius:var(--r);cursor:pointer;font-size:14px;text-align:left;
+}
+.nav button:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav button.activo{background:var(--verde);color:#fff}
+.sesion{margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding:16px 20px;display:none}
+@media(min-width:768px){.sesion{display:block}}
+.sesion .rol{font-size:11px;color:rgba(255,255,255,.5)}
+.sesion button{background:none;border:0;color:rgba(255,255,255,.6);font-size:12px;padding:0;margin-top:10px;cursor:pointer}
+.sesion button:hover{color:#fff}
+.principal{flex:1;min-width:0;padding:24px 16px}
+@media(min-width:640px){.principal{padding:32px}}
+.contenedor{max-width:1120px;margin:0 auto}
+.estrecho{max-width:780px}
+
+/* --- Tarjetas y bloques --- */
+.tarjeta{background:var(--blanco);border:1px solid var(--borde);border-radius:var(--r)}
+.p4{padding:16px} .p5{padding:20px}
+.vacio{
+  background:var(--blanco);border:1px dashed var(--borde);border-radius:var(--r);
+  padding:48px 24px;text-align:center;
+}
+.vacio p:first-child{font-family:"Source Serif 4",Georgia,serif;font-size:17px}
+.vacio p+p{color:var(--apagado);margin-top:4px;max-width:420px;margin-inline:auto}
+.vacio .acciones{margin-top:16px;display:flex;justify-content:center}
+
+/* --- Botones --- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border-radius:6px;padding:8px 12px;font-size:13px;font-weight:500;
+  border:1px solid transparent;cursor:pointer;background:var(--verde);color:#fff;
+  transition:background .12s;
+}
+.btn:hover{background:var(--verde-oscuro)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sec{background:var(--blanco);color:var(--tinta);border-color:var(--borde)}
+.btn.sec:hover{background:var(--lienzo)}
+.btn.fan{background:none;color:var(--apagado);padding:6px 8px}
+.btn.fan:hover{background:var(--lienzo);color:var(--tinta)}
+.btn.peligro{background:var(--blanco);color:var(--granate);border-color:rgba(155,44,44,.3)}
+.btn.peligro:hover{background:rgba(155,44,44,.06)}
+.btn svg{width:15px;height:15px;flex-shrink:0}
+
+/* --- Formularios --- */
+.campo{display:block}
+.campo>span.et{display:block;font-size:11px;font-weight:500;color:var(--apagado);margin-bottom:4px}
+.campo>span.ayuda{display:block;font-size:11px;color:var(--apagado);margin-top:4px}
+input,select,textarea{
+  width:100%;border:1px solid var(--borde);background:var(--blanco);border-radius:6px;
+  padding:8px 10px;font:inherit;font-size:13px;color:var(--tinta);
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 1px var(--verde)}
+textarea{resize:vertical}
+input[type=checkbox]{width:auto;accent-color:var(--verde)}
+.rejilla{display:grid;gap:14px}
+@media(min-width:640px){.rejilla.c2{grid-template-columns:1fr 1fr}.ancho{grid-column:1/-1}}
+fieldset{border:0;padding:0;margin:0 0 20px}
+legend{
+  font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:15px;
+  width:100%;border-bottom:1px solid var(--borde);padding-bottom:6px;margin-bottom:12px;
+}
+.linea{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.crecer{flex:1;min-width:220px}
+
+/* --- Tablas --- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--lienzo)}
+th{text-align:left;font-weight:500;font-size:11px;color:var(--apagado);padding:9px 14px}
+td{padding:11px 14px;border-top:1px solid var(--borde);vertical-align:top}
+tbody tr:hover{background:rgba(242,245,244,.6)}
+.enlace-fila{background:none;border:0;padding:0;font:inherit;font-weight:500;color:var(--tinta);cursor:pointer;text-align:left}
+.enlace-fila:hover{color:var(--verde)}
+
+/* --- Insignias --- */
+.ins{display:inline-flex;align-items:center;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:500;background:var(--lienzo);color:var(--apagado)}
+.ins.verde{background:var(--verde-claro);color:var(--verde)}
+.ins.ambar{background:rgba(166,106,0,.1);color:var(--ambar)}
+.ins.granate{background:rgba(155,44,44,.1);color:var(--granate)}
+
+/* --- Avisos --- */
+.aviso{border-left:2px solid var(--ambar);background:rgba(166,106,0,.05);color:var(--ambar);padding:8px 12px;border-radius:4px;font-size:13px}
+.aviso.verde{border-color:var(--verde);background:var(--verde-claro);color:var(--verde-oscuro)}
+.aviso.granate{border-color:var(--granate);background:rgba(155,44,44,.05);color:var(--granate)}
+
+/* --- Pestañas --- */
+.pestanas{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--borde)}
+.pestanas button{
+  background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;
+  font-size:13px;font-weight:500;color:var(--apagado);cursor:pointer;white-space:nowrap;
+}
+.pestanas button:hover{color:var(--tinta);border-bottom-color:var(--borde)}
+.pestanas button.activa{color:var(--verde);border-bottom-color:var(--verde)}
+.pestanas .cont{color:var(--apagado);font-weight:400;margin-left:5px;font-size:11px}
+
+/* --- Modal --- */
+.velo{position:fixed;inset:0;background:rgba(23,33,43,.4);z-index:50;overflow-y:auto;padding:16px;display:flex;justify-content:center;align-items:flex-start}
+@media(min-width:640px){.velo{padding:32px}}
+.modal{background:var(--blanco);border-radius:var(--r);width:100%;max-width:720px;box-shadow:0 10px 40px rgba(23,33,43,.2)}
+.modal.ancho{max-width:960px}
+.modal.corto{max-width:520px}
+.modal header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid var(--borde);padding:16px 20px}
+.modal header p{font-size:13px;color:var(--apagado);margin-top:2px}
+.modal .cuerpo{padding:16px 20px}
+.modal footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--borde);padding:12px 20px}
+.cerrar{background:none;border:0;color:var(--apagado);cursor:pointer;padding:4px;border-radius:4px;line-height:0}
+.cerrar:hover{background:var(--lienzo)}
+
+/* --- Login --- */
+.login{display:grid;min-height:100vh}
+@media(min-width:768px){.login{grid-template-columns:1fr minmax(0,440px)}}
+.login .relato{background:var(--tinta);color:#fff;padding:56px 48px;display:none;flex-direction:column;justify-content:space-between}
+@media(min-width:768px){.login .relato{display:flex}}
+.login .relato h1{font-size:38px;line-height:1.15;max-width:460px}
+.login .relato .sub{color:rgba(255,255,255,.6);margin-top:16px;max-width:420px}
+.login .relato .pie{font-size:11px;color:rgba(255,255,255,.4)}
+.login .form{display:flex;align-items:center;justify-content:center;padding:48px 24px}
+.login .form form{width:100%;max-width:340px}
+.login .pista{background:var(--lienzo);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--apagado);margin-top:24px}
+
+/* --- Ficha del paciente --- */
+.cabecera-ficha{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:flex-start}
+.metricas{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.metrica .t{font-size:11px;color:var(--apagado)}
+.metrica .v{font-family:"Source Serif 4",Georgia,serif;font-size:26px;font-weight:600;margin-top:2px}
+.metrica .p{font-size:11px;color:var(--apagado);margin-top:2px}
+dl.datos{margin:0;font-size:13px}
+dl.datos>div{display:grid;gap:2px;padding:8px 0;border-bottom:1px solid var(--borde)}
+@media(min-width:640px){dl.datos>div{grid-template-columns:200px 1fr}}
+dl.datos>div:last-child{border-bottom:0}
+dl.datos dt{color:var(--apagado)}
+dl.datos dd{margin:0;white-space:pre-line}
+dl.datos dd.sin{color:rgba(85,99,95,.6)}
+
+/* --- Consultas --- */
+.consulta-cab{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;padding:12px 16px;text-align:left;cursor:pointer}
+.consulta-cab:hover{background:rgba(242,245,244,.6)}
+.consulta-cab .resumen{flex:1;min-width:0}
+.consulta-cab .resumen .sub{font-size:13px;color:var(--apagado);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.consulta-cab .meta{display:none;gap:8px;align-items:center;flex-shrink:0}
+@media(min-width:640px){.consulta-cab .meta{display:flex}}
+.editor{border-top:1px solid var(--borde);background:rgba(242,245,244,.4);padding:16px;display:grid;gap:14px}
+.editor textarea.notas{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.6}
+.estado-guardado{font-size:11px;color:var(--apagado);display:flex;align-items:center;gap:6px}
+.punto{width:7px;height:7px;border-radius:50%;background:var(--verde);display:inline-block}
+.punto.sucio{background:var(--ambar)}
+
+/* --- Línea de tiempo --- */
+ol.tiempo{list-style:none;margin:0;padding:0 0 0 20px;border-left:1px solid var(--borde)}
+ol.tiempo li{position:relative;padding-bottom:18px}
+ol.tiempo li:last-child{padding-bottom:0}
+ol.tiempo .bolita{position:absolute;left:-25px;top:7px;width:9px;height:9px;border-radius:50%}
+ol.tiempo .f{font-size:11px;color:var(--apagado)}
+ol.tiempo .d{font-size:13px;color:var(--apagado)}
+
+/* --- Lista de envíos --- */
+ul.envios{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--borde)}
+ul.envios li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--borde);font-size:13px}
+ul.envios li:last-child{border-bottom:0}
+.err{color:var(--granate);font-size:11px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.fila-acciones{display:flex;flex-wrap:wrap;gap:8px}
+.apagado{color:var(--apagado)}
+.pequeno{font-size:11px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}.mt5{margin-top:20px}.mt6{margin-top:24px}
+.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.entre{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.fin{display:flex;justify-content:flex-end}
+.pila{display:grid;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* --- Banda de estado del almacenamiento --- */
+.banda{background:rgba(166,106,0,.1);color:var(--ambar);padding:8px 16px;font-size:12px;text-align:center}
+.banda button{background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;font-size:12px}
+
+@media print{.lateral,.btn{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div id="raiz"></div>
+<noscript>
+  <p style="padding:32px;font-family:system-ui">
+    Esta aplicación necesita JavaScript activado para funcionar.
+  </p>
+</noscript>
+<script>
+/* ===========================================================================
+   HISTORIAS CLÍNICAS — aplicación de una sola página, sin dependencias
+   de servidor. Todo ocurre en el navegador de quien la abre.
+
+   Organización del archivo:
+     1. Utilidades          2. Almacenamiento     3. Datos de ejemplo
+     4. Sesión y navegación 5. Vistas             6. Ficha del paciente
+     7. Reportes en PDF     8. Envíos             9. Configuración y arranque
+=========================================================================== */
+'use strict';
+
+// ---------------------------------------------------------------------------
+// 1. Utilidades
+// ---------------------------------------------------------------------------
+
+const $ = (sel, raiz = document) => raiz.querySelector(sel);
+const $$ = (sel, raiz = document) => Array.from(raiz.querySelectorAll(sel));
+
+/** Escapa HTML. Se usa en TODO texto que venga de un formulario. */
+function esc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** crypto.randomUUID no existe en contextos no seguros (algunos file://). */
+function uid() {
+  if (crypto?.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+const dosD = (n) => String(n).padStart(2, '0');
+
+/**
+ * Convierte a Date. Una cadena "YYYY-MM-DD" la interpreta el navegador como
+ * medianoche UTC, lo que en husos negativos muestra el día anterior; aquí se
+ * construye como fecha local para que un 18 de marzo siga siendo el 18.
+ */
+function aFecha(v) {
+  if (v instanceof Date) return v;
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [a, m, d] = v.split('-').map(Number);
+    return new Date(a, m - 1, d);
+  }
+  return new Date(v);
+}
+
+function fecha(v) {
+  if (!v) return '—';
+  const d = aFecha(v);
+  return `${dosD(d.getDate())}/${dosD(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+function fechaHora(v) {
+  if (!v) return '—';
+  const d = aFecha(v);
+  return `${fecha(v)} · ${dosD(d.getHours())}:${dosD(d.getMinutes())}`;
+}
+function fechaLarga(v) {
+  const d = aFecha(v || Date.now());
+  return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+}
+function paraInput(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = aFecha(v);
+  return `${d.getFullYear()}-${dosD(d.getMonth() + 1)}-${dosD(d.getDate())}`;
+}
+function paraInputHora(v) {
+  if (!v) return '';
+  const d = aFecha(v);
+  return `${paraInput(v)}T${dosD(d.getHours())}:${dosD(d.getMinutes())}`;
+}
+function relativa(v) {
+  if (!v) return '—';
+  const seg = (Date.now() - new Date(v).getTime()) / 1000;
+  if (seg < 60) return 'hace unos segundos';
+  if (seg < 3600) return `hace ${Math.round(seg / 60)} min`;
+  if (seg < 86400) return `hace ${Math.round(seg / 3600)} h`;
+  if (seg < 2592000) return `hace ${Math.round(seg / 86400)} días`;
+  return fecha(v);
+}
+function edad(nacimiento) {
+  if (!nacimiento) return null;
+  const n = aFecha(nacimiento);
+  const hoy = new Date();
+  let a = hoy.getFullYear() - n.getFullYear();
+  const m = hoy.getMonth() - n.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < n.getDate())) a--;
+  return a;
+}
+
+const ETIQUETAS = {
+  ACTIVO: 'Activo', EN_PAUSA: 'En pausa', ALTA: 'Alta', DERIVADO: 'Derivado',
+  PRESENCIAL: 'Presencial', VIRTUAL: 'Virtual', TELEFONICA: 'Telefónica',
+  COMPLETADO: 'Completado', SUSPENDIDO: 'Suspendido',
+  PENDIENTE: 'Pendiente', EN_PROGRESO: 'En progreso', COMPLETADA: 'Completada',
+  NO_REALIZADA: 'No realizada', FIRMADO: 'Firmado',
+  ENVIADO: 'Enviado', FALLIDO: 'Fallido', PREPARADO: 'Preparado',
+  COMPLETO: 'Completo', SESIONES: 'Sesiones', EVOLUCION: 'Evolución',
+  TAREAS: 'Tareas', TRATAMIENTOS: 'Tratamientos',
+  EMAIL: 'Email', WHATSAPP: 'WhatsApp',
+  fechaHora: 'fecha y hora', duracionMin: 'duración', escalaAnimo: 'escala de ánimo',
+  estadoEmocional: 'estado emocional', proximaCita: 'próxima cita', notas: 'notas',
+  observaciones: 'observaciones', motivo: 'motivo', modalidad: 'modalidad',
+};
+const et = (v) => ETIQUETAS[v] || v || '—';
+
+const tono = (estado) => ({
+  ACTIVO: 'verde', FIRMADO: 'verde', COMPLETADA: 'verde', COMPLETADO: 'verde', ENVIADO: 'verde',
+  PENDIENTE: 'ambar', EN_PROGRESO: 'ambar', EN_PAUSA: 'ambar', PREPARADO: 'ambar',
+  FALLIDO: 'granate', NO_REALIZADA: 'granate', SUSPENDIDO: 'granate',
+}[estado] || '');
+
+const insignia = (valor, t) => `<span class="ins ${t ?? tono(valor)}">${esc(et(valor))}</span>`;
+
+/** Iconos mínimos en SVG. Sin librería: son nueve trazos. */
+const ICONOS = {
+  usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  calendario: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  tareas: '<path d="m3 7 2 2 4-4"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8M13 12h8M13 18h8"/>',
+  ajustes: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  mas: '<path d="M12 5v14M5 12h14"/>',
+  buscar: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  documento: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  correo: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  chat: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.1A8.4 8.4 0 0 1 4 11.5a8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4z"/>',
+  descargar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  ojo: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  lapiz: '<path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
+  archivo: '<rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4"/>',
+  volver: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  cerrar: '<path d="M18 6 6 18M6 6l12 12"/>',
+  reintentar: '<path d="M3 12a9 9 0 1 1 3 6.7"/><path d="M3 21v-6h6"/>',
+  historial: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/>',
+  copiar: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+};
+const icono = (n) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONOS[n] || ''}</svg>`;
+
+/** Markdown mínimo para las notas: párrafos, listas, **negrita**, *cursiva*. */
+function markdown(texto) {
+  if (!texto) return '<p class="apagado">Sin contenido</p>';
+  const enLinea = (s) => s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  let html = '', lista = false;
+  for (const linea of esc(texto).split('\n')) {
+    const item = linea.match(/^\s*[-*]\s+(.*)$/);
+    if (item) {
+      if (!lista) { html += '<ul>'; lista = true; }
+      html += `<li>${enLinea(item[1])}</li>`;
+      continue;
+    }
+    if (lista) { html += '</ul>'; lista = false; }
+    if (linea.trim()) html += `<p>${enLinea(linea)}</p>`;
+  }
+  return html + (lista ? '</ul>' : '');
+}
+
+/** Sustituye {{variables}} en las plantillas de mensaje. */
+const aplicarPlantilla = (texto, vars) =>
+  String(texto || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => vars[k] ?? '');
+
+/** Hash de contraseña. SubtleCrypto no está en contextos no seguros: hay respaldo. */
+async function hashear(texto) {
+  if (crypto?.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Respaldo no criptográfico. Solo evita guardar la contraseña en claro.
+  let h = 0;
+  for (let i = 0; i < texto.length; i++) h = (Math.imul(31, h) + texto.charCodeAt(i)) | 0;
+  return 'debil:' + (h >>> 0).toString(16);
+}
+
+function descargarBlob(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+async function copiar(texto) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    // clipboard exige contexto seguro; respaldo con textarea temporal
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    ta.remove();
+    return ok;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. Almacenamiento
+//
+// IndexedDB es lo que se pidió y lo que se usa cuando está disponible. Pero
+// Chrome la bloquea en páginas abiertas con file://, así que hay una cascada:
+// IndexedDB → localStorage → memoria. La app avisa arriba cuál está usando,
+// porque el riesgo de perder datos no es el mismo en cada caso.
+// ---------------------------------------------------------------------------
+
+const COLECCIONES = ['usuarios', 'pacientes', 'consultas', 'tratamientos', 'tareas',
+  'reportes', 'envios', 'auditoria', 'plantillas', 'config'];
+
+const BD = Object.fromEntries(COLECCIONES.map((c) => [c, []]));
+
+const Almacen = {
+  modo: 'memoria', // indexeddb | localstorage | memoria
+  idb: null,
+
+  async iniciar() {
+    try {
+      this.idb = await this.abrirIdb();
+      this.modo = 'indexeddb';
+      return;
+    } catch (e) {
+      console.warn('IndexedDB no disponible:', e?.message || e);
+    }
+    try {
+      localStorage.setItem('__prueba__', '1');
+      localStorage.removeItem('__prueba__');
+      this.modo = 'localstorage';
+    } catch {
+      this.modo = 'memoria';
+    }
+  },
+
+  abrirIdb() {
+    return new Promise((resolver, rechazar) => {
+      if (!('indexedDB' in window)) return rechazar(new Error('sin indexedDB'));
+      const req = indexedDB.open('historias-clinicas', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        for (const c of COLECCIONES) {
+          if (!db.objectStoreNames.contains(c)) db.createObjectStore(c, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolver(req.result);
+      req.onerror = () => rechazar(req.error || new Error('error al abrir'));
+      req.onblocked = () => rechazar(new Error('bloqueada por otra pestaña'));
+      setTimeout(() => rechazar(new Error('tiempo agotado')), 3000);
+    });
+  },
+
+  async cargarTodo() {
+    if (this.modo === 'indexeddb') {
+      for (const c of COLECCIONES) BD[c] = await this.leerIdb(c);
+    } else if (this.modo === 'localstorage') {
+      for (const c of COLECCIONES) {
+        try { BD[c] = JSON.parse(localStorage.getItem('hc.' + c) || '[]'); }
+        catch { BD[c] = []; }
+      }
+    }
+  },
+
+  leerIdb(coleccion) {
+    return new Promise((resolver, rechazar) => {
+      const tx = this.idb.transaction(coleccion, 'readonly');
+      const req = tx.objectStore(coleccion).getAll();
+      req.onsuccess = () => resolver(req.result || []);
+      req.onerror = () => rechazar(req.error);
+    });
+  },
+
+  /**
+   * Reescribe una colección entera. Los volúmenes de un consultorio son
+   * pequeños; a cambio, no hay dos caminos distintos de escritura que puedan
+   * desincronizarse.
+   */
+  async persistir(coleccion) {
+    if (this.modo === 'indexeddb') {
+      await new Promise((resolver, rechazar) => {
+        const tx = this.idb.transaction(coleccion, 'readwrite');
+        const almacen = tx.objectStore(coleccion);
+        almacen.clear();
+        for (const registro of BD[coleccion]) almacen.put(registro);
+        tx.oncomplete = resolver;
+        tx.onerror = () => rechazar(tx.error);
+        tx.onabort = () => rechazar(tx.error || new Error('transacción abortada'));
+      });
+      return;
+    }
+    if (this.modo === 'localstorage') {
+      try {
+        localStorage.setItem('hc.' + coleccion, JSON.stringify(BD[coleccion]));
+      } catch (e) {
+        // Cuota agotada: casi siempre por los PDF guardados
+        throw new Error('CUOTA');
+      }
+    }
+  },
+
+  async borrarTodo() {
+    for (const c of COLECCIONES) BD[c] = [];
+    for (const c of COLECCIONES) await this.persistir(c).catch(() => {});
+  },
+};
+
+/** Guarda o actualiza un registro y persiste la colección. */
+async function guardar(coleccion, registro) {
+  const lista = BD[coleccion];
+  const i = lista.findIndex((r) => r.id === registro.id);
+  registro.actualizadoEn = new Date().toISOString();
+  if (i >= 0) lista[i] = registro; else lista.push(registro);
+  try {
+    await Almacen.persistir(coleccion);
+  } catch (e) {
+    if (e.message === 'CUOTA') throw e;
+    console.error(e);
+  }
+  return registro;
+}
+
+const buscarId = (coleccion, id) => BD[coleccion].find((r) => r.id === id) || null;
+const porPaciente = (coleccion, pacienteId) => BD[coleccion].filter((r) => r.pacienteId === pacienteId);
+
+/**
+ * Historial de cambios campo a campo. Es lo que permite que cualquier nota
+ * sea editable siempre sin perder el rastro de qué decía antes.
+ */
+async function auditar(entidad, entidadId, antes, despues) {
+  const filas = [];
+  for (const campo of Object.keys(despues)) {
+    const a = antes?.[campo] ?? null;
+    const b = despues[campo] ?? null;
+    if (String(a ?? '') === String(b ?? '')) continue;
+    filas.push({
+      id: uid(), entidad, entidadId, campo,
+      valorAnterior: a === null ? null : String(a),
+      valorNuevo: b === null ? null : String(b),
+      usuarioId: sesion.usuario.id,
+      creadoEn: new Date().toISOString(),
+    });
+  }
+  if (!filas.length) return 0;
+  BD.auditoria.push(...filas);
+  await Almacen.persistir('auditoria').catch(() => {});
+  return filas.length;
+}
+// ---------------------------------------------------------------------------
+// 3. Datos de ejemplo
+//     Todo ficticio. Nunca metas aquí información de pacientes reales.
+// ---------------------------------------------------------------------------
+
+const hace = (d) => new Date(Date.now() - d * 86400000).toISOString();
+const dentroDe = (d) => new Date(Date.now() + d * 86400000).toISOString();
+
+async function sembrar() {
+  const hash = await hashear('demo1234');
+  const admin = {
+    id: uid(), email: 'admin@demo.local', hash, nombre: 'Dirección clínica', rol: 'ADMIN',
+    firmaNombre: 'Dra. Elena Ruiz Navarro', licencia: 'M-12345', activo: true,
+  };
+  const terapeuta = {
+    id: uid(), email: 'terapeuta@demo.local', hash, nombre: 'Marta Sáez Iglesias', rol: 'TERAPEUTA',
+    firmaNombre: 'Marta Sáez Iglesias, Psicóloga General Sanitaria', licencia: 'M-45892', activo: true,
+  };
+  BD.usuarios = [admin, terapeuta];
+
+  BD.config = [{
+    id: 'clinica',
+    nombre: 'Consultorio de Psicología Clínica',
+    subtitulo: 'Atención psicológica individual',
+    contacto: 'contacto@tudominio.com · +34 600 000 000',
+  }];
+
+  BD.plantillas = [
+    {
+      id: uid(), nombre: 'Envío de reporte (email)', canal: 'EMAIL', porDefecto: true,
+      asunto: '{{reporte}} — {{fecha}}',
+      cuerpo: 'Hola {{paciente}},\n\nTe envío el documento «{{reporte}}» con fecha {{fecha}}.\n\nRevísalo con calma y lo comentamos en la próxima sesión.\n\nUn saludo,\n{{terapeuta}}\n{{clinica}}',
+    },
+    {
+      id: uid(), nombre: 'Envío de reporte (WhatsApp)', canal: 'WHATSAPP', porDefecto: true,
+      cuerpo: 'Hola {{paciente}}, soy {{terapeuta}}. Te paso el documento «{{reporte}}» ({{fecha}}). Te lo adjunto aquí mismo.',
+    },
+    {
+      id: uid(), nombre: 'Recordatorio de cita', canal: 'WHATSAPP',
+      cuerpo: 'Hola {{paciente}}, te recuerdo nuestra próxima cita. Si no puedes venir, avísame con antelación. {{terapeuta}}',
+    },
+  ];
+
+  const consentimiento = 'Autorizo el tratamiento de mis datos de salud con finalidad asistencial, la elaboración de una historia clínica y el envío de documentación clínica a los medios de contacto que he facilitado. Puedo revocar este consentimiento en cualquier momento.';
+
+  const fichas = [
+    {
+      nombreCompleto: 'Lucía Martín Herrera', documento: '48920115K', fechaNacimiento: '1994-03-18',
+      genero: 'Mujer', estadoCivil: 'Soltera', ocupacion: 'Diseñadora gráfica',
+      telefono: '+34600111222', email: 'lucia.demo@example.com', direccion: 'Calle Mayor 14, 3ºB, Madrid',
+      emergenciaNombre: 'Pilar Herrera (madre)', emergenciaTelefono: '+34600111333',
+      motivoConsultaInicial: 'Ansiedad anticipatoria ligada al entorno laboral, con insomnio de conciliación desde hace cuatro meses.',
+      antecedentes: 'Sin tratamiento psicológico previo. Episodio de estrés agudo en 2021 tras un cambio de empresa, remitido sin intervención.',
+      medicacionActual: 'Ninguna.', alergias: 'Polen.',
+      diagnosticoPreliminar: 'Trastorno de ansiedad generalizada (a confirmar tras evaluación).',
+      estado: 'ACTIVO', fechaPrimerIngreso: hace(120),
+    },
+    {
+      nombreCompleto: 'Andrés Calvo Peña', documento: '51203988T', fechaNacimiento: '1987-11-02',
+      genero: 'Hombre', estadoCivil: 'Casado', ocupacion: 'Técnico de mantenimiento',
+      telefono: '+34611222333', email: 'andres.demo@example.com',
+      emergenciaNombre: 'Sara Peña (esposa)', emergenciaTelefono: '+34611222444',
+      motivoConsultaInicial: 'Duelo por el fallecimiento del padre hace siete meses, con aislamiento social progresivo.',
+      antecedentes: 'Terapia de pareja en 2019 (seis sesiones, alta).',
+      medicacionActual: 'Lorazepam 1 mg, pautado por su médico de familia para el descanso.',
+      alergias: 'Ninguna conocida.', diagnosticoPreliminar: 'Duelo complicado.',
+      estado: 'ACTIVO', fechaPrimerIngreso: hace(70),
+    },
+    {
+      nombreCompleto: 'Noa Ferrer Blanch', documento: '39871204R', fechaNacimiento: '2006-07-25',
+      genero: 'No binario', estadoCivil: 'Soltere', ocupacion: 'Estudiante',
+      telefono: '+34622333444', email: 'noa.demo@example.com',
+      emergenciaNombre: 'Jordi Ferrer (padre)', emergenciaTelefono: '+34622333555',
+      motivoConsultaInicial: 'Dificultades de regulación emocional y conflictos familiares recurrentes.',
+      diagnosticoPreliminar: 'En evaluación.', estado: 'EN_PAUSA', fechaPrimerIngreso: hace(200),
+    },
+  ];
+
+  fichas.forEach((f, i) => {
+    const paciente = {
+      id: uid(), ...f, archivado: false,
+      terapeutaId: i === 2 ? admin.id : terapeuta.id,
+      fechaUltimaSesion: i === 2 ? null : hace(3),
+      permiso: i === 2
+        ? { aceptado: false, estado: 'PENDIENTE', firmaNombre: null, fechaFirma: null, texto: consentimiento, version: 'v1' }
+        : { aceptado: true, estado: 'FIRMADO', firmaNombre: f.nombreCompleto, fechaFirma: f.fechaPrimerIngreso, texto: consentimiento, version: 'v1' },
+      creadoEn: f.fechaPrimerIngreso,
+    };
+    BD.pacientes.push(paciente);
+    if (i === 2) return;
+
+    const tratamiento = {
+      id: uid(), pacienteId: paciente.id,
+      nombre: i === 0 ? 'Reducción de la ansiedad anticipatoria' : 'Elaboración del duelo',
+      enfoque: i === 0 ? 'Terapia cognitivo-conductual (TCC)' : 'Terapia centrada en el duelo / humanista',
+      descripcion: i === 0
+        ? 'Reestructuración cognitiva de los pensamientos anticipatorios, exposición gradual a las situaciones laborales evitadas y entrenamiento en respiración diafragmática.'
+        : 'Trabajo narrativo sobre la relación con el padre, validación emocional y reactivación conductual progresiva.',
+      fechaInicio: hace(i === 0 ? 110 : 60), fechaFinEstimada: dentroDe(60), fechaCierre: null,
+      estado: 'ACTIVO', frecuencia: 'Semanal', notas: 'Revisar objetivos cada seis sesiones.',
+      creadoEn: hace(i === 0 ? 110 : 60),
+    };
+    BD.tratamientos.push(tratamiento);
+
+    const nSesiones = i === 0 ? 6 : 4;
+    const motivos = i === 0
+      ? ['Evaluación inicial', 'Psicoeducación sobre la ansiedad', 'Registro de pensamientos', 'Exposición a reuniones', 'Revisión de avances', 'Prevención de recaídas']
+      : ['Evaluación inicial', 'Relato de la pérdida', 'Red de apoyo', 'Reactivación conductual'];
+    const animos = i === 0 ? [3, 4, 5, 5, 7, 8] : [2, 3, 5, 6];
+    const estados = i === 0
+      ? ['ansiedad alta', 'ansiedad moderada', 'ansiedad moderada', 'inquietud', 'estable', 'estable']
+      : ['tristeza intensa', 'tristeza', 'ambivalencia', 'tristeza leve'];
+
+    for (let s = 1; s <= nSesiones; s++) {
+      BD.consultas.push({
+        id: uid(), pacienteId: paciente.id, terapeutaId: paciente.terapeutaId,
+        fechaHora: hace((nSesiones - s) * 14 + 3), numeroSesion: s, duracionMin: 50,
+        modalidad: s % 3 === 0 ? 'VIRTUAL' : 'PRESENCIAL',
+        motivo: motivos[s - 1],
+        notas: i === 0
+          ? 'Acude puntual y colaboradora.\n\n- Refiere **mejoría en la conciliación del sueño** (de 90 a 35 minutos aproximados).\n- Persiste la anticipación ante las reuniones de equipo de los lunes.\n- Aplica la respiración diafragmática en 3 de 5 episodios registrados.\n\nSe revisa el registro de pensamientos y se identifica la *catastrofización* como patrón dominante.'
+          : 'Sesión centrada en el relato de la pérdida.\n\n- Llanto sostenido durante los primeros veinte minutos, con buena recuperación posterior.\n- Aparecen por primera vez recuerdos positivos sin culpa asociada.\n- Ha retomado el contacto con dos amigos del barrio.',
+        observaciones: s === 1 ? 'Buena alianza terapéutica desde el inicio.' : 'Adherencia adecuada a las tareas.',
+        estadoEmocional: estados[s - 1], escalaAnimo: animos[s - 1],
+        proximaCita: s === nSesiones ? dentroDe(7) : null,
+        creadoEn: hace((nSesiones - s) * 14 + 3), actualizadoEn: hace((nSesiones - s) * 14 + 3),
+        editadoPorId: null,
+      });
+    }
+
+    const tareas = i === 0
+      ? [
+        { titulo: 'Registro de pensamientos automáticos', descripcion: 'Anotar situación, pensamiento, emoción e intensidad (0-100) cada vez que aparezca ansiedad anticipatoria.', estado: 'COMPLETADA', comentarioPaciente: 'Me costó los primeros días, luego salió solo.', fechaLimite: null },
+        { titulo: 'Respiración diafragmática', descripcion: 'Dos series de cinco minutos al día, preferiblemente antes de dormir.', estado: 'EN_PROGRESO', fechaLimite: null },
+        { titulo: 'Exposición gradual: intervenir en una reunión', descripcion: 'Preparar una aportación breve y hacerla en la reunión del lunes.', estado: 'PENDIENTE', fechaLimite: dentroDe(5) },
+        { titulo: 'Higiene del sueño', descripcion: 'Retirar pantallas una hora antes de acostarse durante siete días.', estado: 'NO_REALIZADA', fechaLimite: hace(10), feedbackTerapeuta: 'Lo retomamos con un objetivo más pequeño.' },
+      ]
+      : [
+        { titulo: 'Carta no enviada', descripcion: 'Escribir una carta a su padre con lo que quedó por decir. No hace falta traerla si no quiere compartirla.', estado: 'COMPLETADA', comentarioPaciente: 'Escribí dos páginas. Me alivió.', fechaLimite: null },
+        { titulo: 'Paseo semanal con un amigo', descripcion: 'Quedar una vez por semana para caminar treinta minutos.', estado: 'EN_PROGRESO', fechaLimite: dentroDe(3) },
+      ];
+
+    for (const t of tareas) {
+      BD.tareas.push({
+        id: uid(), pacienteId: paciente.id, tratamientoId: tratamiento.id, consultaId: null,
+        comentarioPaciente: null, feedbackTerapeuta: null, ...t,
+        fechaAsignacion: hace(20), creadoEn: hace(20), actualizadoEn: hace(20),
+      });
+    }
+  });
+
+  for (const c of COLECCIONES) await Almacen.persistir(c).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// 4. Sesión y navegación
+// ---------------------------------------------------------------------------
+
+const sesion = { usuario: null };
+
+// La sesión vive solo en memoria: al recargar hay que volver a entrar.
+// Con datos clínicos en un equipo posiblemente compartido, es lo prudente.
+const vista = { nombre: 'pacientes', pacienteId: null, pestana: 'datos' };
+
+function irA(nombre, extra = {}) {
+  Object.assign(vista, { nombre, ...extra });
+  render();
+}
+
+const clinica = () => BD.config.find((c) => c.id === 'clinica') || { nombre: 'Consultorio', contacto: '' };
+const usuario = (id) => BD.usuarios.find((u) => u.id === id);
+
+/** Con RESTRINGIR activo, cada terapeuta solo ve sus pacientes. */
+const RESTRINGIR = true;
+const puedeVer = (p) => sesion.usuario.rol === 'ADMIN' || !RESTRINGIR || p.terapeutaId === sesion.usuario.id;
+const misPacientes = () => BD.pacientes.filter(puedeVer);
+
+// ---------------------------------------------------------------------------
+// Componentes de interfaz
+// ---------------------------------------------------------------------------
+
+const campo = ({ etiqueta, ayuda, clase = '', control }) => `
+  <label class="campo ${clase}">
+    ${etiqueta ? `<span class="et">${esc(etiqueta)}</span>` : ''}
+    ${control}
+    ${ayuda ? `<span class="ayuda">${esc(ayuda)}</span>` : ''}
+  </label>`;
+
+const entrada = (id, valor = '', extra = '') =>
+  `<input id="${id}" value="${esc(valor)}" ${extra}>`;
+
+const area = (id, valor = '', filas = 3, extra = '') =>
+  `<textarea id="${id}" rows="${filas}" ${extra}>${esc(valor)}</textarea>`;
+
+const selector = (id, opciones, valor, vacio) => `
+  <select id="${id}">
+    ${vacio ? `<option value="">${esc(vacio)}</option>` : ''}
+    ${opciones.map(([v, t]) =>
+      `<option value="${esc(v)}" ${v === valor ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+  </select>`;
+
+const vacioEstado = (titulo, descripcion, accion = '') => `
+  <div class="vacio">
+    <p>${esc(titulo)}</p>
+    <p>${esc(descripcion)}</p>
+    ${accion ? `<div class="acciones">${accion}</div>` : ''}
+  </div>`;
+
+const boton = (texto, accion, { clase = '', ico = '', datos = '' } = {}) =>
+  `<button class="btn ${clase}" data-ac="${accion}" ${datos}>${ico ? icono(ico) : ''}${esc(texto)}</button>`;
+
+// --- Modal ------------------------------------------------------------------
+let cerrarModalActual = null;
+
+function abrirModal({ titulo, descripcion = '', cuerpo, pie = '', ancho = '', alAbrir }) {
+  cerrarModal();
+  const velo = document.createElement('div');
+  velo.className = 'velo';
+  velo.innerHTML = `
+    <div class="modal ${ancho}" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+      <header>
+        <div>
+          <h2>${esc(titulo)}</h2>
+          ${descripcion ? `<p>${esc(descripcion)}</p>` : ''}
+        </div>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">${icono('cerrar')}</button>
+      </header>
+      <div class="cuerpo">${cuerpo}</div>
+      ${pie ? `<footer>${pie}</footer>` : ''}
+    </div>`;
+  document.body.appendChild(velo);
+  document.body.style.overflow = 'hidden';
+
+  const alTeclado = (e) => { if (e.key === 'Escape') cerrarModal(); };
+  document.addEventListener('keydown', alTeclado);
+  velo.addEventListener('mousedown', (e) => { if (e.target === velo) cerrarModal(); });
+  velo.querySelector('[data-cerrar]').addEventListener('click', cerrarModal);
+
+  cerrarModalActual = () => {
+    document.removeEventListener('keydown', alTeclado);
+    velo.remove();
+    document.body.style.overflow = '';
+    cerrarModalActual = null;
+  };
+  alAbrir?.(velo);
+  velo.querySelector('input,textarea,select,button.btn')?.focus();
+  return velo;
+}
+
+function cerrarModal() { cerrarModalActual?.(); }
+
+/** Mensaje breve sobre el contenido de la vista actual. */
+function nota(texto, t = 'verde') {
+  const caja = $('#nota');
+  if (!caja) return;
+  caja.innerHTML = `<div class="aviso ${t}">${esc(texto)}</div>`;
+  clearTimeout(nota._t);
+  nota._t = setTimeout(() => { if ($('#nota')) $('#nota').innerHTML = ''; }, 6000);
+}
+// ---------------------------------------------------------------------------
+// 5. Vistas
+// ---------------------------------------------------------------------------
+
+const raiz = () => $('#raiz');
+
+function render() {
+  if (!sesion.usuario) return raiz().innerHTML = vistaLogin();
+
+  const nav = [
+    ['pacientes', 'Pacientes', 'usuarios'],
+    ['agenda', 'Agenda', 'calendario'],
+    ['tareas', 'Tareas', 'tareas'],
+    ['configuracion', 'Configuración', 'ajustes'],
+  ];
+
+  const contenido = {
+    pacientes: vistaPacientes,
+    ficha: vistaFicha,
+    agenda: vistaAgenda,
+    tareas: vistaTareas,
+    configuracion: vistaConfiguracion,
+  }[vista.nombre] || vistaPacientes;
+
+  raiz().innerHTML = `
+    <div class="app">
+      <aside class="lateral">
+        <div class="marca">
+          <p>Historias clínicas</p>
+          <p>Psicología · seguimiento</p>
+        </div>
+        <nav class="nav">
+          ${nav.map(([id, texto, ico]) => `
+            <button data-ac="ir" data-vista="${id}"
+                    class="${vista.nombre === id || (id === 'pacientes' && vista.nombre === 'ficha') ? 'activo' : ''}">
+              ${icono(ico)}${texto}
+            </button>`).join('')}
+        </nav>
+        <div class="sesion">
+          <p>${esc(sesion.usuario.nombre)}</p>
+          <p class="rol">${sesion.usuario.rol === 'ADMIN' ? 'Administración' : 'Terapeuta'}</p>
+          <button data-ac="salir">Cerrar sesión</button>
+        </div>
+      </aside>
+      <main class="principal">
+        ${bandaAlmacen()}
+        <div class="contenedor">
+          <div id="nota"></div>
+          ${contenido()}
+        </div>
+      </main>
+    </div>`;
+  trasRender();
+}
+
+// Enganches que necesitan el DOM ya pintado (autoguardado, gráficos)
+function trasRender() {
+  if (vista.nombre === 'ficha' && vista.pestana === 'consultas') engancharEditores();
+}
+
+function bandaAlmacen() {
+  if (Almacen.modo === 'indexeddb') return '';
+  const texto = Almacen.modo === 'localstorage'
+    ? 'Este navegador no permite IndexedDB en archivos locales, así que los datos se guardan en el almacenamiento simple del navegador. Funciona, pero cabe menos: descarga una copia de seguridad a menudo.'
+    : 'No hay almacenamiento disponible: los datos solo existen mientras esta pestaña siga abierta. Descarga una copia antes de cerrarla.';
+  return `<div class="banda">${esc(texto)}
+    <button data-ac="exportar">Descargar copia</button></div>`;
+}
+
+// --- Login ------------------------------------------------------------------
+
+function vistaLogin() {
+  return `
+  <div class="login">
+    <section class="relato">
+      <p class="serif" style="font-size:17px">Historias clínicas</p>
+      <div>
+        <h1>El expediente completo de cada persona, en una pantalla.</h1>
+        <p class="sub">Sesiones, tratamientos, tareas y reportes en PDF listos para compartir.</p>
+      </div>
+      <p class="pie">Información clínica confidencial. Cierra la sesión al terminar.</p>
+    </section>
+    <section class="form">
+      <form id="form-login">
+        <h1 style="font-size:22px">Entrar</h1>
+        <p class="apagado mt2" style="font-size:13px">Usa las credenciales de tu consultorio.</p>
+        <div class="rejilla mt5">
+          ${campo({ etiqueta: 'Email', control: entrada('login-email', '', 'type="email" required autocomplete="username" placeholder="nombre@consultorio.com"') })}
+          ${campo({ etiqueta: 'Contraseña', control: entrada('login-pass', '', 'type="password" required autocomplete="current-password"') })}
+          <div id="login-error"></div>
+          <button class="btn" type="submit" style="width:100%">Entrar</button>
+        </div>
+        <p class="pista">Demo: terapeuta@demo.local · demo1234</p>
+      </form>
+    </section>
+  </div>`;
+}
+
+async function entrar(e) {
+  e.preventDefault();
+  const email = $('#login-email').value.trim().toLowerCase();
+  const pass = $('#login-pass').value;
+  const hash = await hashear(pass);
+  const u = BD.usuarios.find((x) => x.email === email && x.activo);
+  // Mismo mensaje en los dos casos: no revelamos si el email existe
+  if (!u || u.hash !== hash) {
+    $('#login-error').innerHTML = '<div class="aviso granate">Email o contraseña incorrectos.</div>';
+    return;
+  }
+  sesion.usuario = u;
+  irA('pacientes');
+}
+
+// --- Listado de pacientes ---------------------------------------------------
+
+const filtroPacientes = { buscar: '', estado: '', archivados: false };
+
+function vistaPacientes() {
+  const t = filtroPacientes.buscar.toLowerCase();
+  const lista = misPacientes()
+    .filter((p) => !!p.archivado === filtroPacientes.archivados)
+    .filter((p) => !filtroPacientes.estado || p.estado === filtroPacientes.estado)
+    .filter((p) => !t || [p.nombreCompleto, p.documento, p.diagnosticoPreliminar]
+      .some((c) => (c || '').toLowerCase().includes(t)))
+    .sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto, 'es'));
+
+  const filas = lista.map((p) => {
+    const nSesiones = porPaciente('consultas', p.id).length;
+    return `<tr>
+      <td>
+        <button class="enlace-fila" data-ac="ficha" data-id="${p.id}">${esc(p.nombreCompleto)}</button>
+        <p class="pequeno apagado">${edad(p.fechaNacimiento)} años${p.diagnosticoPreliminar ? ' · ' + esc(p.diagnosticoPreliminar) : ''}</p>
+      </td>
+      <td class="apagado">${esc(p.documento)}</td>
+      <td class="apagado">${nSesiones}</td>
+      <td class="apagado">${fecha(p.fechaUltimaSesion)}</td>
+      <td>${insignia(p.estado)}</td>
+      <td>${insignia(p.permiso?.estado || 'PENDIENTE')}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <header class="entre">
+    <div>
+      <h1>Pacientes</h1>
+      <p class="apagado mt2" style="font-size:13px">
+        ${lista.length} ${filtroPacientes.archivados ? 'archivados' : 'en seguimiento'}
+      </p>
+    </div>
+    ${boton('Nuevo paciente', 'nuevo-paciente', { ico: 'mas' })}
+  </header>
+
+  <div class="linea mt6">
+    <div class="crecer">
+      ${campo({ etiqueta: 'Buscar', control: entrada('f-buscar', filtroPacientes.buscar, 'placeholder="Nombre, documento o diagnóstico"') })}
+    </div>
+    ${campo({
+      etiqueta: 'Estado',
+      control: selector('f-estado', [['ACTIVO', 'Activo'], ['EN_PAUSA', 'En pausa'], ['ALTA', 'Alta'], ['DERIVADO', 'Derivado']], filtroPacientes.estado, 'Todos'),
+    })}
+    <label class="campo" style="display:flex;align-items:center;gap:8px;padding-bottom:8px">
+      <input type="checkbox" id="f-archivados" ${filtroPacientes.archivados ? 'checked' : ''}>
+      <span class="apagado" style="font-size:13px">Ver archivados</span>
+    </label>
+  </div>
+
+  <div class="mt4">
+    ${lista.length === 0
+      ? vacioEstado(
+        filtroPacientes.buscar ? 'Ningún paciente coincide' : 'Todavía no hay pacientes',
+        filtroPacientes.buscar ? 'Prueba con otro nombre o número de documento.' : 'Crea la primera ficha para empezar el seguimiento.',
+        filtroPacientes.buscar ? '' : boton('Nuevo paciente', 'nuevo-paciente', { ico: 'mas' }))
+      : `<div class="tarjeta" style="overflow:hidden">
+          <table>
+            <thead><tr>
+              <th>Paciente</th><th>Documento</th><th>Sesiones</th>
+              <th>Última sesión</th><th>Estado</th><th>Consentimiento</th>
+            </tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>`}
+  </div>`;
+}
+
+// --- Formulario de paciente -------------------------------------------------
+
+const CAMPOS_PACIENTE = [
+  ['Datos personales', [
+    ['nombreCompleto', 'Nombre completo', 'texto', 'ancho', 'required'],
+    ['documento', 'Documento de identidad', 'texto', '', 'required'],
+    ['fechaNacimiento', 'Fecha de nacimiento', 'fecha', '', 'required'],
+    ['genero', 'Género', 'texto', '', '', 'Mujer, Hombre, No binario…'],
+    ['estadoCivil', 'Estado civil', 'texto'],
+    ['ocupacion', 'Ocupación', 'texto'],
+    ['estado', 'Estado del seguimiento', 'estado'],
+  ]],
+  ['Contacto', [
+    ['telefono', 'Teléfono', 'texto', '', '', '+34600111222', 'Con prefijo internacional, se usa para WhatsApp'],
+    ['email', 'Email', 'email'],
+    ['direccion', 'Dirección', 'texto', 'ancho'],
+    ['emergenciaNombre', 'Contacto de emergencia', 'texto', '', '', 'Nombre y parentesco'],
+    ['emergenciaTelefono', 'Teléfono de emergencia', 'texto'],
+  ]],
+  ['Información clínica', [
+    ['motivoConsultaInicial', 'Motivo de consulta inicial', 'area', 'ancho'],
+    ['antecedentes', 'Antecedentes psicológicos o psiquiátricos', 'area', 'ancho'],
+    ['medicacionActual', 'Medicación actual', 'texto'],
+    ['alergias', 'Alergias', 'texto'],
+    ['diagnosticoPreliminar', 'Diagnóstico preliminar', 'texto', 'ancho'],
+  ]],
+];
+
+function modalPaciente(paciente) {
+  const v = (c) => paciente?.[c] ?? '';
+  const cuerpo = `<form id="form-paciente">${CAMPOS_PACIENTE.map(([titulo, campos]) => `
+    <fieldset>
+      <legend>${titulo}</legend>
+      <div class="rejilla c2">
+        ${campos.map(([id, etiqueta, tipo, clase = '', extra = '', ph = '', ayuda = '']) => {
+          const attrs = `${extra} ${ph ? `placeholder="${esc(ph)}"` : ''}`;
+          let control;
+          if (tipo === 'area') control = area('p-' + id, v(id), 3);
+          else if (tipo === 'estado') control = selector('p-estado',
+            [['ACTIVO', 'Activo'], ['EN_PAUSA', 'En pausa'], ['ALTA', 'Alta'], ['DERIVADO', 'Derivado']],
+            paciente?.estado || 'ACTIVO');
+          else if (tipo === 'fecha') control = entrada('p-' + id, paraInput(v(id)), `type="date" ${attrs}`);
+          else if (tipo === 'email') control = entrada('p-' + id, v(id), `type="email" ${attrs}`);
+          else control = entrada('p-' + id, v(id), attrs);
+          return campo({ etiqueta, ayuda, clase, control });
+        }).join('')}
+      </div>
+    </fieldset>`).join('')}
+    <div id="paciente-error"></div>
+  </form>`;
+
+  abrirModal({
+    titulo: paciente ? 'Editar ficha' : 'Nuevo paciente',
+    descripcion: 'Los campos clínicos pueden completarse más adelante.',
+    ancho: 'ancho',
+    cuerpo,
+    pie: `${boton('Cancelar', 'cerrar-modal', { clase: 'sec' })}
+          <button class="btn" type="submit" form="form-paciente">${paciente ? 'Guardar cambios' : 'Crear ficha'}</button>`,
+    alAbrir: (velo) => {
+      $('#form-paciente', velo).addEventListener('submit', (e) => guardarPaciente(e, paciente));
+    },
+  });
+}
+
+async function guardarPaciente(e, existente) {
+  e.preventDefault();
+  const leer = (c) => $('#p-' + c)?.value.trim() ?? '';
+  const documento = leer('documento');
+  const repetido = BD.pacientes.find((p) => p.documento === documento && p.id !== existente?.id);
+  if (repetido) {
+    $('#paciente-error').innerHTML =
+      `<div class="aviso granate">Ya hay una ficha con ese documento: ${esc(repetido.nombreCompleto)}.</div>`;
+    return;
+  }
+
+  const datos = {};
+  for (const [, campos] of CAMPOS_PACIENTE) {
+    for (const [id] of campos) datos[id] = leer(id) || null;
+  }
+  datos.fechaNacimiento = $('#p-fechaNacimiento').value || null;
+  datos.estado = $('#p-estado').value;
+
+  if (existente) {
+    const antes = { ...existente };
+    Object.assign(existente, datos);
+    await guardar('pacientes', existente);
+    await auditar('Paciente', existente.id, antes, datos);
+  } else {
+    await guardar('pacientes', {
+      id: uid(), ...datos, archivado: false,
+      terapeutaId: sesion.usuario.id,
+      fechaPrimerIngreso: new Date().toISOString(), fechaUltimaSesion: null,
+      permiso: { aceptado: false, estado: 'PENDIENTE', firmaNombre: null, fechaFirma: null, texto: '', version: 'v1' },
+      creadoEn: new Date().toISOString(),
+    });
+  }
+  cerrarModal();
+  render();
+  nota(existente ? 'Ficha actualizada.' : 'Ficha creada.');
+}
+
+// --- Agenda -----------------------------------------------------------------
+
+function vistaAgenda() {
+  const citas = misPacientes()
+    .map((p) => {
+      const proxima = porPaciente('consultas', p.id)
+        .filter((c) => c.proximaCita && new Date(c.proximaCita) >= new Date())
+        .sort((a, b) => new Date(a.proximaCita) - new Date(b.proximaCita))[0];
+      return proxima ? { paciente: p, cuando: proxima.proximaCita } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.cuando) - new Date(b.cuando));
+
+  return `
+    <h1>Agenda</h1>
+    <p class="apagado mt2" style="font-size:13px">
+      Próximas citas anotadas al cerrar cada sesión.
+    </p>
+    <div class="mt6">
+      ${citas.length === 0
+        ? vacioEstado('Sin citas programadas', 'Anota la próxima cita en la sesión y aparecerá aquí.')
+        : `<div class="tarjeta">
+            ${citas.map((c) => `
+              <div class="entre" style="padding:12px 16px;border-top:1px solid var(--borde)">
+                <div>
+                  <button class="enlace-fila" data-ac="ficha" data-id="${c.paciente.id}">${esc(c.paciente.nombreCompleto)}</button>
+                  <p class="pequeno apagado">${porPaciente('consultas', c.paciente.id).length} sesiones registradas</p>
+                </div>
+                <p style="font-size:13px">${fechaHora(c.cuando)}</p>
+              </div>`).join('')}
+          </div>`}
+    </div>`;
+}
+
+// --- Bandeja de tareas ------------------------------------------------------
+
+const filtroTareas = { estado: '', vencidas: false };
+
+function vistaTareas() {
+  const idsVisibles = new Set(misPacientes().map((p) => p.id));
+  const ahora = new Date();
+  const lista = BD.tareas
+    .filter((t) => idsVisibles.has(t.pacienteId))
+    .filter((t) => !filtroTareas.estado || t.estado === filtroTareas.estado)
+    .filter((t) => !filtroTareas.vencidas ||
+      (t.fechaLimite && new Date(t.fechaLimite) < ahora && ['PENDIENTE', 'EN_PROGRESO'].includes(t.estado)))
+    .sort((a, b) => new Date(a.fechaLimite || '2999-01-01') - new Date(b.fechaLimite || '2999-01-01'));
+
+  return `
+    <h1>Tareas</h1>
+    <p class="apagado mt2" style="font-size:13px">Ejercicios asignados entre sesiones, de todos tus pacientes.</p>
+
+    <div class="linea mt6">
+      ${campo({
+        etiqueta: 'Estado',
+        control: selector('ft-estado', [['PENDIENTE', 'Pendiente'], ['EN_PROGRESO', 'En progreso'], ['COMPLETADA', 'Completada'], ['NO_REALIZADA', 'No realizada']], filtroTareas.estado, 'Todas'),
+      })}
+      <label class="campo" style="display:flex;align-items:center;gap:8px;padding-bottom:8px">
+        <input type="checkbox" id="ft-vencidas" ${filtroTareas.vencidas ? 'checked' : ''}>
+        <span class="apagado" style="font-size:13px">Solo vencidas</span>
+      </label>
+    </div>
+
+    <div class="mt4">
+      ${lista.length === 0
+        ? vacioEstado('Nada pendiente aquí', 'Cuando asignes tareas en una sesión aparecerán en esta bandeja.')
+        : `<div class="tarjeta">
+            ${lista.map((t) => {
+              const p = buscarId('pacientes', t.pacienteId);
+              return `<div class="entre" style="padding:12px 16px;border-top:1px solid var(--borde)">
+                <div>
+                  <p style="font-weight:500">${esc(t.titulo)}</p>
+                  <p class="pequeno apagado">
+                    <button class="enlace-fila pequeno" data-ac="ficha" data-id="${p.id}">${esc(p.nombreCompleto)}</button>
+                    ${t.fechaLimite ? ' · límite ' + fecha(t.fechaLimite) : ''}
+                  </p>
+                </div>
+                ${insignia(t.estado)}
+              </div>`;
+            }).join('')}
+          </div>`}
+    </div>`;
+}
+// ---------------------------------------------------------------------------
+// 6. Ficha del paciente
+// ---------------------------------------------------------------------------
+
+const pacienteActual = () => buscarId('pacientes', vista.pacienteId);
+
+function resumenPaciente(p) {
+  const consultas = porPaciente('consultas', p.id);
+  const tareas = porPaciente('tareas', p.id);
+  const completadas = tareas.filter((t) => t.estado === 'COMPLETADA').length;
+  const cerradas = tareas.filter((t) => ['COMPLETADA', 'NO_REALIZADA'].includes(t.estado)).length;
+  const proxima = consultas
+    .filter((c) => c.proximaCita && new Date(c.proximaCita) >= new Date())
+    .sort((a, b) => new Date(a.proximaCita) - new Date(b.proximaCita))[0];
+  return {
+    totalSesiones: consultas.length,
+    ultima: consultas.map((c) => c.fechaHora).sort().pop() || null,
+    adherencia: cerradas ? Math.round((completadas / cerradas) * 100) : null,
+    pendientes: tareas.filter((t) => t.estado === 'PENDIENTE').length,
+    tratamientosActivos: porPaciente('tratamientos', p.id).filter((t) => t.estado === 'ACTIVO').length,
+    proximaCita: proxima?.proximaCita || null,
+  };
+}
+
+function vistaFicha() {
+  const p = pacienteActual();
+  if (!p) return vacioEstado('Ficha no encontrada', 'Vuelve al listado de pacientes.');
+  const r = resumenPaciente(p);
+
+  const pestanas = [
+    ['datos', 'Datos', null],
+    ['permiso', 'Permiso', null],
+    ['consultas', 'Consultas', porPaciente('consultas', p.id).length],
+    ['tratamientos', 'Tratamientos', porPaciente('tratamientos', p.id).length],
+    ['tareas', 'Tareas', porPaciente('tareas', p.id).length],
+    ['evolucion', 'Evolución', null],
+    ['reportes', 'Reportes', porPaciente('reportes', p.id).length],
+  ];
+
+  const panel = {
+    datos: pestanaDatos, permiso: pestanaPermiso, consultas: pestanaConsultas,
+    tratamientos: pestanaTratamientos, tareas: pestanaTareas,
+    evolucion: pestanaEvolucion, reportes: pestanaReportes,
+  }[vista.pestana](p);
+
+  return `
+    <button class="btn fan" data-ac="ir" data-vista="pacientes">${icono('volver')}Pacientes</button>
+
+    <header class="cabecera-ficha mt3">
+      <div>
+        <div class="chips">
+          <h1>${esc(p.nombreCompleto)}</h1>
+          ${insignia(p.estado)}
+          ${p.archivado ? '<span class="ins">Archivado</span>' : ''}
+        </div>
+        <p class="apagado mt2" style="font-size:13px">
+          ${esc(p.documento)} · ${edad(p.fechaNacimiento)} años${p.diagnosticoPreliminar ? ' · ' + esc(p.diagnosticoPreliminar) : ''}
+        </p>
+      </div>
+      <div class="fila-acciones">
+        ${boton('Editar', 'editar-paciente', { clase: 'sec', ico: 'lapiz' })}
+        ${boton(p.archivado ? 'Recuperar' : 'Archivar', 'archivar', { clase: 'sec', ico: 'archivo' })}
+        ${boton('Generar PDF', 'ir-reportes', { ico: 'documento' })}
+      </div>
+    </header>
+
+    <div class="metricas mt5">
+      ${metrica('Sesiones', r.totalSesiones, 'Última: ' + fecha(r.ultima))}
+      ${metrica('Adherencia a tareas', r.adherencia === null ? '—' : r.adherencia + '%', r.pendientes + ' pendientes')}
+      ${metrica('Tratamientos activos', r.tratamientosActivos,
+        p.permiso?.estado === 'FIRMADO' ? 'Consentimiento firmado' : 'Consentimiento pendiente')}
+      ${metrica('Próxima cita', fecha(r.proximaCita), r.proximaCita ? 'Según la última sesión' : 'Sin cita programada')}
+    </div>
+
+    ${p.permiso?.estado !== 'FIRMADO' ? `
+      <div class="mt4"><div class="aviso">
+        El consentimiento informado está pendiente de firma. Recógela antes de enviar
+        documentación clínica al paciente.
+      </div></div>` : ''}
+
+    <div class="mt6">
+      <div class="pestanas">
+        ${pestanas.map(([id, texto, cont]) => `
+          <button data-ac="pestana" data-p="${id}" class="${vista.pestana === id ? 'activa' : ''}">
+            ${texto}${cont !== null ? `<span class="cont">${cont}</span>` : ''}
+          </button>`).join('')}
+      </div>
+      <div class="mt5">${panel}</div>
+    </div>`;
+}
+
+const metrica = (t, v, pie) => `
+  <div class="tarjeta p4 metrica">
+    <p class="t">${esc(t)}</p>
+    <p class="v">${esc(v)}</p>
+    <p class="p">${esc(pie)}</p>
+  </div>`;
+
+// --- Pestaña: Datos ---------------------------------------------------------
+
+function bloqueDatos(titulo, filas, ancho) {
+  return `
+  <div class="tarjeta p5" ${ancho ? 'style="grid-column:1/-1"' : ''}>
+    <h2 class="mb3">${esc(titulo)}</h2>
+    <dl class="datos">
+      ${filas.map(([k, v]) => `
+        <div>
+          <dt>${esc(k)}</dt>
+          <dd class="${v ? '' : 'sin'}">${v ? esc(v) : 'Sin registrar'}</dd>
+        </div>`).join('')}
+    </dl>
+  </div>`;
+}
+
+function pestanaDatos(p) {
+  const t = usuario(p.terapeutaId);
+  return `<div class="rejilla c2">
+    ${bloqueDatos('Datos personales', [
+      ['Nombre completo', p.nombreCompleto],
+      ['Documento', p.documento],
+      ['Fecha de nacimiento', `${fecha(p.fechaNacimiento)} (${edad(p.fechaNacimiento)} años)`],
+      ['Género', p.genero], ['Estado civil', p.estadoCivil], ['Ocupación', p.ocupacion],
+    ])}
+    ${bloqueDatos('Contacto', [
+      ['Teléfono', p.telefono], ['Email', p.email], ['Dirección', p.direccion],
+      ['Contacto de emergencia', [p.emergenciaNombre, p.emergenciaTelefono].filter(Boolean).join(' · ')],
+    ])}
+    ${bloqueDatos('Información clínica', [
+      ['Motivo de consulta inicial', p.motivoConsultaInicial],
+      ['Antecedentes', p.antecedentes],
+      ['Medicación actual', p.medicacionActual],
+      ['Alergias', p.alergias],
+      ['Diagnóstico preliminar', p.diagnosticoPreliminar],
+    ], true)}
+    ${bloqueDatos('Seguimiento', [
+      ['Terapeuta responsable', t?.nombre],
+      ['Primer ingreso', fecha(p.fechaPrimerIngreso)],
+      ['Última sesión', fecha(p.fechaUltimaSesion)],
+    ], true)}
+  </div>`;
+}
+
+// --- Pestaña: Permiso -------------------------------------------------------
+
+const TEXTO_CONSENTIMIENTO = 'Autorizo el tratamiento de mis datos de salud con finalidad asistencial, la elaboración de una historia clínica y el envío de documentación clínica a los medios de contacto que he facilitado. Puedo revocar este consentimiento en cualquier momento.';
+
+function pestanaPermiso(p) {
+  const pm = p.permiso || {};
+  return `
+  <div class="tarjeta p5 estrecho">
+    <div class="entre mb4">
+      <h2>Consentimiento informado</h2>
+      ${insignia(pm.estado || 'PENDIENTE')}
+    </div>
+    ${pm.estado === 'FIRMADO'
+      ? `<p class="apagado mb4" style="font-size:13px">Firmado por ${esc(pm.firmaNombre)} el ${fechaHora(pm.fechaFirma)} · versión ${esc(pm.version || 'v1')}</p>`
+      : ''}
+    <form id="form-permiso" class="rejilla">
+      ${campo({ etiqueta: 'Texto del consentimiento', control: area('perm-texto', pm.texto || TEXTO_CONSENTIMIENTO, 5) })}
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px">
+        <input type="checkbox" id="perm-aceptado" ${pm.aceptado ? 'checked' : ''} style="margin-top:3px">
+        <span>El paciente ha leído el documento y acepta su contenido.</span>
+      </label>
+      ${campo({
+        etiqueta: 'Firma (nombre escrito por el paciente)',
+        ayuda: 'Firma digital simple: el nombre mecanografiado y la fecha.',
+        control: entrada('perm-firma', pm.firmaNombre || '', 'placeholder="Nombre y apellidos" style="font-family:\'Source Serif 4\',Georgia,serif;font-size:16px"'),
+      })}
+      <div><button class="btn" type="submit">Guardar consentimiento</button></div>
+    </form>
+  </div>`;
+}
+
+async function guardarPermiso(e) {
+  e.preventDefault();
+  const p = pacienteActual();
+  const aceptado = $('#perm-aceptado').checked;
+  const firmaNombre = $('#perm-firma').value.trim();
+  const firmado = aceptado && !!firmaNombre;
+  p.permiso = {
+    aceptado, firmaNombre: firmaNombre || null,
+    estado: firmado ? 'FIRMADO' : 'PENDIENTE',
+    fechaFirma: firmado ? (p.permiso?.fechaFirma || new Date().toISOString()) : null,
+    texto: $('#perm-texto').value,
+    version: p.permiso?.version || 'v1',
+  };
+  await guardar('pacientes', p);
+  render();
+  nota(firmado ? 'Consentimiento firmado.' : 'Guardado como pendiente: falta la aceptación o la firma.',
+    firmado ? 'verde' : 'ambar');
+}
+
+// --- Pestaña: Consultas -----------------------------------------------------
+
+const filtroConsultas = { desde: '', hasta: '', modalidad: '' };
+let consultaAbierta = null;
+
+function consultasFiltradas(pacienteId) {
+  return porPaciente('consultas', pacienteId)
+    .filter((c) => !filtroConsultas.desde || new Date(c.fechaHora) >= new Date(filtroConsultas.desde))
+    .filter((c) => !filtroConsultas.hasta || new Date(c.fechaHora) <= new Date(filtroConsultas.hasta + 'T23:59:59'))
+    .filter((c) => !filtroConsultas.modalidad || c.modalidad === filtroConsultas.modalidad)
+    .sort((a, b) => new Date(b.fechaHora) - new Date(a.fechaHora));
+}
+
+function pestanaConsultas(p) {
+  const lista = consultasFiltradas(p.id);
+  const MODALIDADES = [['PRESENCIAL', 'Presencial'], ['VIRTUAL', 'Virtual'], ['TELEFONICA', 'Telefónica']];
+
+  return `
+  <div class="linea mb4">
+    ${campo({ etiqueta: 'Desde', control: entrada('fc-desde', filtroConsultas.desde, 'type="date"') })}
+    ${campo({ etiqueta: 'Hasta', control: entrada('fc-hasta', filtroConsultas.hasta, 'type="date"') })}
+    ${campo({ etiqueta: 'Modalidad', control: selector('fc-modalidad', MODALIDADES, filtroConsultas.modalidad, 'Todas') })}
+    <div style="margin-left:auto">${boton('Nueva consulta', 'nueva-consulta', { ico: 'mas' })}</div>
+  </div>
+
+  ${lista.length === 0
+    ? vacioEstado('Sin consultas en este filtro', 'Registra la primera sesión para empezar el historial.',
+      boton('Nueva consulta', 'nueva-consulta', { ico: 'mas' }))
+    : `<div class="pila">${lista.map((c) => tarjetaConsulta(c)).join('')}</div>`}`;
+}
+
+function tarjetaConsulta(c) {
+  const abierta = consultaAbierta === c.id;
+  return `
+  <div class="tarjeta" style="overflow:hidden">
+    <button class="consulta-cab" data-ac="abrir-consulta" data-id="${c.id}">
+      <span class="apagado">${abierta ? '▾' : '▸'}</span>
+      <span class="resumen">
+        <span style="font-weight:500">Sesión ${c.numeroSesion}</span>
+        <span class="apagado" style="margin-left:8px;font-weight:400">${fechaHora(c.fechaHora)}</span>
+        <span class="sub">${esc(c.motivo || (c.notas || '').slice(0, 90) || 'Sin notas registradas')}</span>
+      </span>
+      <span class="meta">
+        ${c.estadoEmocional ? `<span class="ins">${esc(c.estadoEmocional)}</span>` : ''}
+        ${insignia(c.modalidad, '')}
+        <span class="pequeno apagado">${c.duracionMin} min</span>
+      </span>
+    </button>
+    ${abierta ? editorConsulta(c) : ''}
+  </div>`;
+}
+
+function editorConsulta(c) {
+  const MODALIDADES = [['PRESENCIAL', 'Presencial'], ['VIRTUAL', 'Virtual'], ['TELEFONICA', 'Telefónica']];
+  const editor = usuario(c.editadoPorId);
+  return `
+  <div class="editor" data-editor="${c.id}">
+    <div class="rejilla c2">
+      ${campo({ etiqueta: 'Fecha y hora', control: entrada('c-fechaHora', paraInputHora(c.fechaHora), 'type="datetime-local"') })}
+      ${campo({ etiqueta: 'Duración (minutos)', control: entrada('c-duracionMin', c.duracionMin, 'type="number" min="5" max="480"') })}
+      ${campo({ etiqueta: 'Modalidad', control: selector('c-modalidad', MODALIDADES, c.modalidad) })}
+      ${campo({ etiqueta: 'Próxima cita sugerida', control: entrada('c-proximaCita', paraInputHora(c.proximaCita), 'type="datetime-local"') })}
+    </div>
+    ${campo({ etiqueta: 'Motivo de consulta del día', control: entrada('c-motivo', c.motivo || '') })}
+    ${campo({
+      etiqueta: 'Evolución clínica',
+      ayuda: 'Admite markdown básico: **negrita**, *cursiva* y listas con guion.',
+      control: area('c-notas', c.notas || '', 10, 'class="notas"'),
+    })}
+    ${campo({ etiqueta: 'Observaciones del terapeuta', control: area('c-observaciones', c.observaciones || '', 3) })}
+    <div class="rejilla c2">
+      ${campo({
+        etiqueta: 'Estado emocional observado', ayuda: 'Etiquetas separadas por coma',
+        control: entrada('c-estadoEmocional', c.estadoEmocional || '', 'placeholder="ansiedad moderada, ánimo bajo"'),
+      })}
+      ${campo({
+        etiqueta: 'Escala de ánimo (1–10)', ayuda: 'Alimenta el gráfico de evolución',
+        control: entrada('c-escalaAnimo', c.escalaAnimo ?? '', 'type="number" min="1" max="10"'),
+      })}
+    </div>
+    <div class="entre">
+      <p class="estado-guardado" id="estado-guardado">
+        Última modificación ${relativa(c.actualizadoEn)}${editor ? ' por ' + esc(editor.nombre) : ''}
+      </p>
+      <div class="fila-acciones">
+        ${boton('Ver historial de cambios', 'historial-consulta', { clase: 'fan', ico: 'historial', datos: `data-id="${c.id}"` })}
+        ${boton('Guardar', 'guardar-consulta', { datos: `data-id="${c.id}"` })}
+      </div>
+    </div>
+    <div id="historial-caja"></div>
+  </div>`;
+}
+
+/** Autoguardado: dos segundos después de la última tecla. */
+let temporizadorGuardado = null;
+
+function engancharEditores() {
+  const editor = $('[data-editor]');
+  if (!editor) return;
+  const id = editor.dataset.editor;
+  $$('input, textarea, select', editor).forEach((el) => {
+    el.addEventListener('input', () => {
+      marcarSucio();
+      clearTimeout(temporizadorGuardado);
+      temporizadorGuardado = setTimeout(() => guardarConsulta(id, true), 2000);
+    });
+  });
+}
+
+function marcarSucio() {
+  const caja = $('#estado-guardado');
+  if (caja) caja.innerHTML = '<span class="punto sucio"></span> Cambios sin guardar';
+}
+
+async function guardarConsulta(id, silencioso) {
+  clearTimeout(temporizadorGuardado);
+  const c = buscarId('consultas', id);
+  if (!c || !$('#c-notas')) return;
+
+  const escala = $('#c-escalaAnimo').value;
+  const datos = {
+    fechaHora: $('#c-fechaHora').value ? new Date($('#c-fechaHora').value).toISOString() : c.fechaHora,
+    duracionMin: Number($('#c-duracionMin').value) || 50,
+    modalidad: $('#c-modalidad').value,
+    motivo: $('#c-motivo').value.trim() || null,
+    notas: $('#c-notas').value,
+    observaciones: $('#c-observaciones').value.trim() || null,
+    estadoEmocional: $('#c-estadoEmocional').value.trim() || null,
+    escalaAnimo: escala === '' ? null : Math.min(10, Math.max(1, Number(escala))),
+    proximaCita: $('#c-proximaCita').value ? new Date($('#c-proximaCita').value).toISOString() : null,
+  };
+
+  const antes = { ...c };
+  Object.assign(c, datos, { editadoPorId: sesion.usuario.id });
+  await guardar('consultas', c);
+  await auditar('Consulta', c.id, antes, datos);
+
+  // La ficha muestra la fecha de la última sesión: se mantiene al día
+  const p = buscarId('pacientes', c.pacienteId);
+  const ultima = porPaciente('consultas', p.id).map((x) => x.fechaHora).sort().pop() || null;
+  if (p.fechaUltimaSesion !== ultima) { p.fechaUltimaSesion = ultima; await guardar('pacientes', p); }
+
+  const caja = $('#estado-guardado');
+  if (caja) caja.innerHTML = '<span class="punto"></span> Guardado';
+  if (!silencioso) nota('Consulta guardada.');
+}
+
+function modalNuevaConsulta() {
+  const p = pacienteActual();
+  const MODALIDADES = [['PRESENCIAL', 'Presencial'], ['VIRTUAL', 'Virtual'], ['TELEFONICA', 'Telefónica']];
+  abrirModal({
+    titulo: 'Nueva consulta',
+    descripcion: 'El número de sesión se asigna solo. Las notas se escriben después, en el editor.',
+    ancho: 'corto',
+    cuerpo: `<form id="form-consulta" class="rejilla">
+      ${campo({ etiqueta: 'Fecha y hora', control: entrada('nc-fecha', paraInputHora(new Date()), 'type="datetime-local" required') })}
+      <div class="rejilla c2">
+        ${campo({ etiqueta: 'Duración (minutos)', control: entrada('nc-duracion', 50, 'type="number" min="5" max="480"') })}
+        ${campo({ etiqueta: 'Modalidad', control: selector('nc-modalidad', MODALIDADES, 'PRESENCIAL') })}
+      </div>
+      ${campo({ etiqueta: 'Motivo de consulta del día', control: entrada('nc-motivo') })}
+    </form>`,
+    pie: `${boton('Cancelar', 'cerrar-modal', { clase: 'sec' })}
+          <button class="btn" type="submit" form="form-consulta">Crear consulta</button>`,
+    alAbrir: (velo) => $('#form-consulta', velo).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const previas = porPaciente('consultas', p.id);
+      const nueva = {
+        id: uid(), pacienteId: p.id, terapeutaId: sesion.usuario.id,
+        fechaHora: new Date($('#nc-fecha').value).toISOString(),
+        numeroSesion: previas.reduce((m, c) => Math.max(m, c.numeroSesion), 0) + 1,
+        duracionMin: Number($('#nc-duracion').value) || 50,
+        modalidad: $('#nc-modalidad').value,
+        motivo: $('#nc-motivo').value.trim() || null,
+        notas: '', observaciones: null, estadoEmocional: null, escalaAnimo: null,
+        proximaCita: null, creadoEn: new Date().toISOString(), editadoPorId: null,
+      };
+      await guardar('consultas', nueva);
+      p.fechaUltimaSesion = porPaciente('consultas', p.id).map((x) => x.fechaHora).sort().pop();
+      await guardar('pacientes', p);
+      consultaAbierta = nueva.id;
+      cerrarModal();
+      render();
+    }),
+  });
+}
+
+function mostrarHistorial(consultaId) {
+  const caja = $('#historial-caja');
+  if (!caja) return;
+  if (caja.innerHTML) { caja.innerHTML = ''; return; }
+  const filas = BD.auditoria
+    .filter((a) => a.entidad === 'Consulta' && a.entidadId === consultaId)
+    .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn))
+    .slice(0, 100);
+  caja.innerHTML = `<div class="tarjeta p4">
+    ${filas.length === 0
+      ? '<p class="apagado" style="font-size:13px">Sin modificaciones posteriores al registro inicial.</p>'
+      : filas.map((h) => `
+        <div style="padding:8px 0;border-bottom:1px solid var(--borde)">
+          <p class="pequeno apagado">${fechaHora(h.creadoEn)} · ${esc(usuario(h.usuarioId)?.nombre || '—')} · ${esc(et(h.campo))}</p>
+          <p class="apagado" style="font-size:13px;text-decoration:line-through">${esc((h.valorAnterior || '(vacío)').slice(0, 160))}</p>
+          <p style="font-size:13px">${esc((h.valorNuevo || '(vacío)').slice(0, 160))}</p>
+        </div>`).join('')}
+  </div>`;
+}
+// --- Pestaña: Tratamientos --------------------------------------------------
+
+function pestanaTratamientos(p) {
+  const lista = porPaciente('tratamientos', p.id)
+    .sort((a, b) => (a.estado === 'ACTIVO' ? -1 : 1) - (b.estado === 'ACTIVO' ? -1 : 1)
+      || new Date(b.fechaInicio) - new Date(a.fechaInicio));
+
+  if (!lista.length) {
+    return `<div class="fin mb4">${boton('Nuevo tratamiento', 'nuevo-tratamiento', { ico: 'mas' })}</div>
+      ${vacioEstado('Sin tratamientos registrados',
+        'Define el objetivo terapéutico y el enfoque para ordenar el trabajo de las sesiones.',
+        boton('Nuevo tratamiento', 'nuevo-tratamiento', { ico: 'mas' }))}`;
+  }
+
+  return `
+  <div class="fin mb4">${boton('Nuevo tratamiento', 'nuevo-tratamiento', { ico: 'mas' })}</div>
+  <div class="pila">
+    ${lista.map((t) => `
+      <div class="tarjeta p4">
+        <div class="entre">
+          <div>
+            <div class="chips">
+              <h3>${esc(t.nombre)}</h3>
+              ${insignia(t.estado)}
+            </div>
+            <p class="apagado mt2" style="font-size:13px">${esc([t.enfoque, t.frecuencia].filter(Boolean).join(' · '))}</p>
+          </div>
+          <div class="fila-acciones">
+            ${boton('Editar', 'editar-tratamiento', { clase: 'sec', datos: `data-id="${t.id}"` })}
+            ${t.estado === 'ACTIVO'
+              ? boton('Completar', 'estado-tratamiento', { clase: 'sec', datos: `data-id="${t.id}" data-estado="COMPLETADO"` })
+                + boton('Suspender', 'estado-tratamiento', { clase: 'peligro', datos: `data-id="${t.id}" data-estado="SUSPENDIDO"` })
+              : boton('Reactivar', 'estado-tratamiento', { clase: 'sec', datos: `data-id="${t.id}" data-estado="ACTIVO"` })}
+          </div>
+        </div>
+        ${t.descripcion ? `<p class="mt3" style="font-size:13px;white-space:pre-line">${esc(t.descripcion)}</p>` : ''}
+        <p class="pequeno apagado mt3">
+          Inicio: ${fecha(t.fechaInicio)} · Fin estimado: ${fecha(t.fechaFinEstimada)}
+          ${t.fechaCierre ? ' · Cierre: ' + fecha(t.fechaCierre) : ''}
+          · ${BD.tareas.filter((x) => x.tratamientoId === t.id).length} tareas asociadas
+        </p>
+        ${t.notas ? `<p class="mt3" style="background:var(--lienzo);padding:8px 12px;border-radius:6px;font-size:13px">${esc(t.notas)}</p>` : ''}
+      </div>`).join('')}
+  </div>`;
+}
+
+function modalTratamiento(t) {
+  const p = pacienteActual();
+  abrirModal({
+    titulo: t ? 'Editar tratamiento' : 'Nuevo tratamiento',
+    cuerpo: `<form id="form-tratamiento" class="rejilla c2">
+      ${campo({ etiqueta: 'Objetivo del tratamiento', clase: 'ancho', control: entrada('t-nombre', t?.nombre || '', 'required placeholder="Reducción de la ansiedad anticipatoria"') })}
+      ${campo({ etiqueta: 'Enfoque terapéutico', control: entrada('t-enfoque', t?.enfoque || '', 'placeholder="TCC, humanista, sistémico…"') })}
+      ${campo({ etiqueta: 'Frecuencia de sesiones', control: entrada('t-frecuencia', t?.frecuencia || 'Semanal') })}
+      ${campo({ etiqueta: 'Fecha de inicio', control: entrada('t-inicio', paraInput(t?.fechaInicio || new Date()), 'type="date"') })}
+      ${campo({ etiqueta: 'Fin estimado', control: entrada('t-fin', paraInput(t?.fechaFinEstimada), 'type="date"') })}
+      ${campo({ etiqueta: 'Descripción', clase: 'ancho', control: area('t-descripcion', t?.descripcion || '', 3) })}
+      ${campo({ etiqueta: 'Notas', clase: 'ancho', control: area('t-notas', t?.notas || '', 2) })}
+    </form>`,
+    pie: `${boton('Cancelar', 'cerrar-modal', { clase: 'sec' })}
+          <button class="btn" type="submit" form="form-tratamiento">Guardar</button>`,
+    alAbrir: (velo) => $('#form-tratamiento', velo).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const datos = {
+        nombre: $('#t-nombre').value.trim(),
+        enfoque: $('#t-enfoque').value.trim() || null,
+        frecuencia: $('#t-frecuencia').value.trim() || null,
+        fechaInicio: $('#t-inicio').value || new Date().toISOString(),
+        fechaFinEstimada: $('#t-fin').value || null,
+        descripcion: $('#t-descripcion').value.trim() || null,
+        notas: $('#t-notas').value.trim() || null,
+      };
+      if (t) {
+        const antes = { ...t };
+        Object.assign(t, datos);
+        await guardar('tratamientos', t);
+        await auditar('Tratamiento', t.id, antes, datos);
+      } else {
+        await guardar('tratamientos', {
+          id: uid(), pacienteId: p.id, ...datos, estado: 'ACTIVO',
+          fechaCierre: null, creadoEn: new Date().toISOString(),
+        });
+      }
+      cerrarModal();
+      render();
+    }),
+  });
+}
+
+async function cambiarEstadoTratamiento(id, estado) {
+  const t = buscarId('tratamientos', id);
+  const antes = { ...t };
+  t.estado = estado;
+  // La fecha de cierre se deriva del estado, no se pide aparte
+  t.fechaCierre = estado === 'ACTIVO' ? null : (t.fechaCierre || new Date().toISOString());
+  await guardar('tratamientos', t);
+  await auditar('Tratamiento', t.id, antes, { estado, fechaCierre: t.fechaCierre });
+  render();
+}
+
+// --- Pestaña: Tareas --------------------------------------------------------
+
+const ESTADOS_TAREA = [['PENDIENTE', 'Pendiente'], ['EN_PROGRESO', 'En progreso'],
+  ['COMPLETADA', 'Completada'], ['NO_REALIZADA', 'No realizada']];
+
+let filtroTareaFicha = '';
+
+function pestanaTareas(p) {
+  const lista = porPaciente('tareas', p.id)
+    .filter((t) => !filtroTareaFicha || t.estado === filtroTareaFicha)
+    .sort((a, b) => new Date(a.fechaLimite || '2999-01-01') - new Date(b.fechaLimite || '2999-01-01'));
+  const ahora = new Date();
+
+  return `
+  <div class="entre mb4">
+    ${campo({ etiqueta: 'Filtrar por estado', control: selector('ftf-estado', ESTADOS_TAREA, filtroTareaFicha, 'Todas') })}
+    ${boton('Nueva tarea', 'nueva-tarea', { ico: 'mas' })}
+  </div>
+
+  ${lista.length === 0
+    ? vacioEstado('Sin tareas asignadas',
+      'Asigna ejercicios entre sesiones: registros de pensamiento, diarios, respiración.',
+      boton('Nueva tarea', 'nueva-tarea', { ico: 'mas' }))
+    : `<div class="pila">${lista.map((t) => {
+        const vencida = t.fechaLimite && new Date(t.fechaLimite) < ahora && ['PENDIENTE', 'EN_PROGRESO'].includes(t.estado);
+        const tr = buscarId('tratamientos', t.tratamientoId);
+        return `<div class="tarjeta p4">
+          <div class="entre">
+            <div>
+              <div class="chips">
+                <p style="font-weight:500">${esc(t.titulo)}</p>
+                ${insignia(t.estado)}
+                ${vencida ? '<span class="ins granate">Vencida</span>' : ''}
+              </div>
+              ${t.descripcion ? `<p class="apagado mt2" style="font-size:13px">${esc(t.descripcion)}</p>` : ''}
+              <p class="pequeno apagado mt2">
+                Asignada ${fecha(t.fechaAsignacion)}${t.fechaLimite ? ' · límite ' + fecha(t.fechaLimite) : ''}${tr ? ' · ' + esc(tr.nombre) : ''}
+              </p>
+            </div>
+            <div class="fila-acciones">
+              <select data-ac="estado-tarea" data-id="${t.id}">
+                ${ESTADOS_TAREA.map(([v, txt]) => `<option value="${v}" ${t.estado === v ? 'selected' : ''}>${txt}</option>`).join('')}
+              </select>
+              ${boton('Editar', 'editar-tarea', { clase: 'sec', datos: `data-id="${t.id}"` })}
+            </div>
+          </div>
+          ${(t.comentarioPaciente || t.feedbackTerapeuta) ? `
+            <div class="mt3" style="border-top:1px solid var(--borde);padding-top:10px;font-size:13px">
+              ${t.comentarioPaciente ? `<p><span class="pequeno apagado">Paciente: </span>${esc(t.comentarioPaciente)}</p>` : ''}
+              ${t.feedbackTerapeuta ? `<p><span class="pequeno apagado">Terapeuta: </span>${esc(t.feedbackTerapeuta)}</p>` : ''}
+            </div>` : ''}
+        </div>`;
+      }).join('')}</div>`}`;
+}
+
+function modalTarea(t) {
+  const p = pacienteActual();
+  const tratamientos = porPaciente('tratamientos', p.id).map((x) => [x.id, x.nombre]);
+  abrirModal({
+    titulo: t ? 'Editar tarea' : 'Nueva tarea',
+    cuerpo: `<form id="form-tarea" class="rejilla c2">
+      ${campo({ etiqueta: 'Título', clase: 'ancho', control: entrada('ta-titulo', t?.titulo || '', 'required placeholder="Registro de pensamientos automáticos"') })}
+      ${campo({
+        etiqueta: 'Descripción', clase: 'ancho',
+        control: area('ta-descripcion', t?.descripcion || '', 3, 'placeholder="Qué tiene que hacer, con qué frecuencia y en qué momento."'),
+      })}
+      ${campo({ etiqueta: 'Fecha límite', control: entrada('ta-limite', paraInput(t?.fechaLimite), 'type="date"') })}
+      ${campo({ etiqueta: 'Estado', control: selector('ta-estado', ESTADOS_TAREA, t?.estado || 'PENDIENTE') })}
+      ${campo({ etiqueta: 'Tratamiento asociado', clase: 'ancho', control: selector('ta-tratamiento', tratamientos, t?.tratamientoId || '', 'Sin asociar') })}
+      ${t ? campo({ etiqueta: 'Comentario del paciente', clase: 'ancho', control: area('ta-comentario', t.comentarioPaciente || '', 2) }) : ''}
+      ${t ? campo({ etiqueta: 'Retroalimentación del terapeuta', clase: 'ancho', control: area('ta-feedback', t.feedbackTerapeuta || '', 2) }) : ''}
+    </form>`,
+    pie: `${boton('Cancelar', 'cerrar-modal', { clase: 'sec' })}
+          <button class="btn" type="submit" form="form-tarea">Guardar</button>`,
+    alAbrir: (velo) => $('#form-tarea', velo).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const datos = {
+        titulo: $('#ta-titulo').value.trim(),
+        descripcion: $('#ta-descripcion').value.trim() || null,
+        fechaLimite: $('#ta-limite').value || null,
+        estado: $('#ta-estado').value,
+        tratamientoId: $('#ta-tratamiento').value || null,
+        comentarioPaciente: $('#ta-comentario')?.value.trim() || t?.comentarioPaciente || null,
+        feedbackTerapeuta: $('#ta-feedback')?.value.trim() || t?.feedbackTerapeuta || null,
+      };
+      if (t) {
+        const antes = { ...t };
+        Object.assign(t, datos);
+        await guardar('tareas', t);
+        await auditar('Tarea', t.id, antes, datos);
+      } else {
+        await guardar('tareas', {
+          id: uid(), pacienteId: p.id, consultaId: null, ...datos,
+          fechaAsignacion: new Date().toISOString(), creadoEn: new Date().toISOString(),
+        });
+      }
+      cerrarModal();
+      render();
+    }),
+  });
+}
+
+// --- Pestaña: Evolución -----------------------------------------------------
+
+function pestanaEvolucion(p) {
+  const consultas = porPaciente('consultas', p.id);
+  const tratamientos = porPaciente('tratamientos', p.id);
+  const tareas = porPaciente('tareas', p.id);
+  const reportes = porPaciente('reportes', p.id);
+
+  const eventos = [
+    ...consultas.map((c) => ({
+      tipo: 'consulta', cuando: c.fechaHora, titulo: `Sesión ${c.numeroSesion}`,
+      detalle: c.motivo || c.estadoEmocional || '',
+    })),
+    ...tratamientos.map((t) => ({
+      tipo: 'tratamiento', cuando: t.fechaInicio,
+      titulo: `Inicio de tratamiento: ${t.nombre}`, detalle: t.enfoque || '',
+    })),
+    ...tratamientos.filter((t) => t.fechaCierre).map((t) => ({
+      tipo: 'tratamiento', cuando: t.fechaCierre,
+      titulo: `Cierre de tratamiento: ${t.nombre}`, detalle: et(t.estado),
+    })),
+    ...tareas.filter((t) => t.estado === 'COMPLETADA').map((t) => ({
+      tipo: 'tarea', cuando: t.actualizadoEn || t.fechaAsignacion,
+      titulo: `Tarea completada: ${t.titulo}`, detalle: t.comentarioPaciente || '',
+    })),
+    ...reportes.map((r) => ({
+      tipo: 'reporte', cuando: r.creadoEn, titulo: r.titulo,
+      detalle: 'Generado por ' + (usuario(r.generadoPorId)?.nombre || '—'),
+    })),
+  ].sort((a, b) => new Date(b.cuando) - new Date(a.cuando));
+
+  if (!eventos.length) {
+    return vacioEstado('Todavía no hay evolución que mostrar',
+      'La línea de tiempo se construye con las consultas, los tratamientos y las tareas completadas.');
+  }
+
+  const colores = { consulta: 'var(--verde)', tratamiento: 'var(--ambar)', tarea: 'var(--tinta)', reporte: 'var(--apagado)' };
+  const serie = consultas
+    .filter((c) => typeof c.escalaAnimo === 'number')
+    .sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora));
+
+  return `
+  <div class="rejilla" style="grid-template-columns:1fr">
+    <div class="rejilla c2" style="align-items:start">
+      <div class="tarjeta p5">
+        <h2 class="mb4">Línea de tiempo</h2>
+        <ol class="tiempo">
+          ${eventos.map((e) => `
+            <li>
+              <span class="bolita" style="background:${colores[e.tipo]}"></span>
+              <p class="f">${fecha(e.cuando)}</p>
+              <p style="font-weight:500">${esc(e.titulo)}</p>
+              ${e.detalle ? `<p class="d">${esc(e.detalle)}</p>` : ''}
+            </li>`).join('')}
+        </ol>
+      </div>
+      <div class="tarjeta p5">
+        <h2>Escala de ánimo</h2>
+        <p class="pequeno apagado mb4">Valor autoinformado al cierre de cada sesión (1–10).</p>
+        ${serie.length < 2
+          ? '<p class="apagado" style="font-size:13px">Hacen falta al menos dos sesiones con escala registrada.</p>'
+          : graficoAnimo(serie)}
+      </div>
+    </div>
+  </div>`;
+}
+
+/** Gráfico de líneas en SVG. Una serie corta no necesita una librería. */
+function graficoAnimo(serie) {
+  const w = 300, h = 150, pad = 26;
+  const puntos = serie.map((c, i) => {
+    const x = pad + (i * (w - pad * 2)) / Math.max(1, serie.length - 1);
+    const y = h - pad - ((c.escalaAnimo - 1) / 9) * (h - pad * 2);
+    return { x, y, c };
+  });
+  const guias = [1, 5, 10].map((v) => {
+    const y = h - pad - ((v - 1) / 9) * (h - pad * 2);
+    return `<line x1="${pad}" y1="${y}" x2="${w - pad}" y2="${y}" stroke="var(--borde)"/>
+            <text x="${pad - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="var(--apagado)">${v}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%" role="img"
+    aria-label="Evolución del ánimo en ${serie.length} sesiones">
+    ${guias}
+    <polyline points="${puntos.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}"
+      fill="none" stroke="var(--verde)" stroke-width="2"/>
+    ${puntos.map((p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--verde)">
+      <title>Sesión ${p.c.numeroSesion}: ${p.c.escalaAnimo}/10</title></circle>`).join('')}
+  </svg>`;
+}
+// ---------------------------------------------------------------------------
+// 7. Reportes en PDF
+//
+// jsPDF compone el documento en el propio navegador. No hay servidor, así que
+// tampoco hay nada que instalar; a cambio, la maquetación se calcula a mano
+// con un cursor vertical en lugar de dejársela a un motor HTML.
+// ---------------------------------------------------------------------------
+
+const TITULOS_REPORTE = {
+  COMPLETO: 'Reporte completo del paciente',
+  SESIONES: 'Reporte de sesiones por rango de fechas',
+  EVOLUCION: 'Reporte de evolución clínica',
+  TAREAS: 'Reporte de tareas asignadas',
+  TRATAMIENTOS: 'Reporte de tratamientos',
+};
+
+const TINTA = [23, 33, 43];
+const VERDE = [47, 111, 98];
+const APAGADO = [85, 99, 95];
+const BORDE = [221, 228, 226];
+
+const hayJsPdf = () => !!(window.jspdf && window.jspdf.jsPDF);
+
+/** Cursor de escritura sobre el documento, con salto de página automático. */
+class Lienzo {
+  constructor(doc) {
+    this.doc = doc;
+    this.ancho = doc.internal.pageSize.getWidth();
+    this.alto = doc.internal.pageSize.getHeight();
+    this.izq = 16;
+    this.der = this.ancho - 16;
+    this.arriba = 26;
+    this.abajo = this.alto - 22;
+    this.y = this.arriba;
+  }
+
+  get util() { return this.der - this.izq; }
+
+  espacio(mm) {
+    if (this.y + mm > this.abajo) this.nuevaPagina();
+  }
+
+  nuevaPagina() {
+    this.doc.addPage();
+    this.y = this.arriba;
+  }
+
+  salto(mm = 4) { this.y += mm; }
+
+  titulo(texto) {
+    this.espacio(14);
+    this.doc.setFont('helvetica', 'bold').setFontSize(12).setTextColor(...VERDE);
+    this.doc.text(texto, this.izq, this.y);
+    this.y += 2.5;
+    this.doc.setDrawColor(...VERDE).setLineWidth(0.5);
+    this.doc.line(this.izq, this.y, this.der, this.y);
+    this.y += 6;
+  }
+
+  subtitulo(texto) {
+    this.espacio(10);
+    this.doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(...TINTA);
+    this.doc.text(texto, this.izq, this.y);
+    this.y += 5;
+  }
+
+  parrafo(texto, { tam = 9.5, color = TINTA, estilo = 'normal', sangria = 0 } = {}) {
+    if (!texto) return;
+    this.doc.setFont('helvetica', estilo).setFontSize(tam).setTextColor(...color);
+    const lineas = this.doc.splitTextToSize(String(texto), this.util - sangria);
+    const alturaLinea = tam * 0.48;
+    for (const linea of lineas) {
+      this.espacio(alturaLinea + 1);
+      this.doc.text(linea, this.izq + sangria, this.y);
+      this.y += alturaLinea;
+    }
+    this.y += 1.5;
+  }
+
+  /** Notas en markdown ligero: listas con guion y párrafos. */
+  notas(texto) {
+    if (!texto || !texto.trim()) {
+      this.parrafo('Sin contenido', { color: APAGADO, estilo: 'italic' });
+      return;
+    }
+    for (const linea of texto.split('\n')) {
+      const item = linea.match(/^\s*[-*]\s+(.*)$/);
+      const limpio = (item ? item[1] : linea).replace(/\*+/g, '');
+      if (!limpio.trim()) continue;
+      if (item) {
+        this.espacio(5);
+        this.doc.setFillColor(...APAGADO);
+        this.doc.circle(this.izq + 1.6, this.y - 1.2, 0.6, 'F');
+        this.parrafo(limpio, { sangria: 5 });
+      } else {
+        this.parrafo(limpio);
+      }
+    }
+  }
+
+  /** Pares etiqueta/valor en dos columnas. */
+  datos(pares) {
+    const filas = pares.filter(([, v]) => v !== null && v !== undefined && v !== '');
+    if (!filas.length) {
+      this.parrafo('Sin información registrada.', { color: APAGADO, estilo: 'italic' });
+      return;
+    }
+    const anchoEt = 52;
+    for (const [k, v] of filas) {
+      this.doc.setFont('helvetica', 'normal').setFontSize(9);
+      const lineas = this.doc.splitTextToSize(String(v), this.util - anchoEt - 4);
+      const altura = Math.max(4.6, lineas.length * 4.3 + 1.2);
+      this.espacio(altura + 1);
+      this.doc.setTextColor(...APAGADO);
+      this.doc.text(this.doc.splitTextToSize(k, anchoEt - 3), this.izq, this.y);
+      this.doc.setTextColor(...TINTA);
+      this.doc.text(lineas, this.izq + anchoEt, this.y);
+      this.y += altura;
+      this.doc.setDrawColor(237, 241, 240).setLineWidth(0.2);
+      this.doc.line(this.izq, this.y - 1.6, this.der, this.y - 1.6);
+    }
+    this.y += 2;
+  }
+
+  tabla(cabeceras, filas) {
+    if (!filas.length) {
+      this.parrafo('Sin datos.', { color: APAGADO, estilo: 'italic' });
+      return;
+    }
+    if (this.doc.autoTable) {
+      this.doc.autoTable({
+        head: [cabeceras], body: filas, startY: this.y,
+        margin: { left: this.izq, right: 16, top: this.arriba, bottom: this.alto - this.abajo },
+        theme: 'plain',
+        styles: { fontSize: 8.5, cellPadding: 2.2, textColor: TINTA, lineColor: BORDE, lineWidth: 0.1 },
+        headStyles: { fillColor: [242, 245, 244], textColor: APAGADO, fontStyle: 'bold' },
+      });
+      this.y = this.doc.lastAutoTable.finalY + 5;
+      return;
+    }
+    // Respaldo si el plugin de tablas no cargó
+    for (const fila of filas) this.parrafo(fila.join(' · '), { tam: 8.5 });
+  }
+
+  chips(textos) {
+    const lista = textos.filter(Boolean);
+    if (!lista.length) return;
+    this.espacio(6);
+    this.doc.setFont('helvetica', 'normal').setFontSize(8);
+    let x = this.izq;
+    for (const t of lista) {
+      const ancho = this.doc.getTextWidth(t) + 5;
+      if (x + ancho > this.der) { this.y += 5.5; x = this.izq; this.espacio(6); }
+      this.doc.setFillColor(238, 243, 241);
+      this.doc.roundedRect(x, this.y - 3.2, ancho, 4.8, 2.4, 2.4, 'F');
+      this.doc.setTextColor(...VERDE);
+      this.doc.text(t, x + 2.5, this.y);
+      x += ancho + 2;
+    }
+    this.y += 6;
+  }
+
+  /** Gráfico de ánimo, dibujado con primitivas del propio PDF. */
+  grafico(serie) {
+    if (serie.length < 2) return;
+    const alto = 34, ancho = Math.min(120, this.util);
+    this.espacio(alto + 6);
+    const x0 = this.izq, y0 = this.y, y1 = this.y + alto;
+    this.doc.setDrawColor(...BORDE).setLineWidth(0.2);
+    for (const v of [1, 5, 10]) {
+      const y = y1 - ((v - 1) / 9) * alto;
+      this.doc.line(x0, y, x0 + ancho, y);
+      this.doc.setFontSize(6.5).setTextColor(...APAGADO);
+      this.doc.text(String(v), x0 - 2.5, y + 1, { align: 'right' });
+    }
+    this.doc.setDrawColor(...VERDE).setLineWidth(0.5);
+    const puntos = serie.map((c, i) => [
+      x0 + (i * ancho) / (serie.length - 1),
+      y1 - ((c.escalaAnimo - 1) / 9) * alto,
+    ]);
+    for (let i = 1; i < puntos.length; i++) {
+      this.doc.line(puntos[i - 1][0], puntos[i - 1][1], puntos[i][0], puntos[i][1]);
+    }
+    this.doc.setFillColor(...VERDE);
+    for (const [x, y] of puntos) this.doc.circle(x, y, 0.8, 'F');
+    this.y = y1 + 7;
+  }
+}
+
+/** Encabezado y pie repetidos, con numeración. Se pintan al final. */
+function decorar(doc, { paciente, terapeuta, info }) {
+  const total = doc.internal.getNumberOfPages();
+  const ancho = doc.internal.pageSize.getWidth();
+  const alto = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'bold').setFontSize(8).setTextColor(...VERDE);
+    doc.text(info.nombre, 16, 14);
+    doc.setFont('helvetica', 'normal').setTextColor(...APAGADO);
+    doc.text(`${paciente.nombreCompleto} · ${paciente.documento}`, ancho - 16, 14, { align: 'right' });
+    doc.setDrawColor(...BORDE).setLineWidth(0.2);
+    doc.line(16, 17, ancho - 16, 17);
+
+    doc.line(16, alto - 16, ancho - 16, alto - 16);
+    doc.setFontSize(7.5).setTextColor(138, 151, 147);
+    const firma = [terapeuta.firmaNombre || terapeuta.nombre,
+      terapeuta.licencia ? 'Col. ' + terapeuta.licencia : null, info.contacto]
+      .filter(Boolean).join(' — ');
+    doc.text(firma.slice(0, 120), 16, alto - 11);
+    doc.text(`Página ${i} de ${total}`, ancho - 16, alto - 11, { align: 'right' });
+  }
+}
+
+/** Compone el PDF completo y devuelve el documento de jsPDF. */
+function componerReporte(tipo, paciente, parametros) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const L = new Lienzo(doc);
+  const info = clinica();
+  const terapeuta = sesion.usuario;
+
+  const desde = parametros.desde ? new Date(parametros.desde) : null;
+  const hasta = parametros.hasta ? new Date(parametros.hasta + 'T23:59:59') : null;
+  const consultas = porPaciente('consultas', paciente.id)
+    .filter((c) => !desde || new Date(c.fechaHora) >= desde)
+    .filter((c) => !hasta || new Date(c.fechaHora) <= hasta)
+    .sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora));
+  const tareas = porPaciente('tareas', paciente.id);
+  const tratamientos = porPaciente('tratamientos', paciente.id);
+
+  // --- Portada ---
+  doc.setFont('helvetica', 'bold').setFontSize(17).setTextColor(...TINTA);
+  doc.text(TITULOS_REPORTE[tipo], L.izq, L.y + 2);
+  L.y += 9;
+  L.parrafo(`${paciente.nombreCompleto} · Documento ${paciente.documento}`, { color: APAGADO });
+  L.parrafo(`Generado el ${fechaLarga(new Date())} por ${terapeuta.nombre}`, { color: APAGADO });
+  if (desde || hasta) {
+    L.parrafo(`Periodo: ${fecha(desde)} — ${fecha(hasta)}`, { color: APAGADO });
+  }
+  L.salto(2);
+  doc.setFillColor(242, 245, 244);
+  const texto = 'Documento clínico confidencial. Contiene información sensible protegida por la normativa de protección de datos de salud. Su difusión sin consentimiento del paciente no está autorizada.';
+  doc.setFont('helvetica', 'normal').setFontSize(8);
+  const lineasAviso = doc.splitTextToSize(texto, L.util - 8);
+  const altoAviso = lineasAviso.length * 3.6 + 5;
+  doc.rect(L.izq, L.y - 1, L.util, altoAviso, 'F');
+  doc.setFillColor(...VERDE);
+  doc.rect(L.izq, L.y - 1, 0.8, altoAviso, 'F');
+  doc.setTextColor(69, 83, 79);
+  doc.text(lineasAviso, L.izq + 4, L.y + 3);
+  L.y += altoAviso + 6;
+
+  // --- Secciones según el tipo ---
+  if (parametros.incluirDatosPersonales !== false) seccionPaciente(L, paciente);
+  if (tipo === 'COMPLETO') {
+    seccionPermiso(L, paciente);
+    seccionTratamientos(L, tratamientos);
+    seccionConsultas(L, consultas, true);
+    seccionTareas(L, tareas);
+    seccionEvolucion(L, consultas);
+  }
+  if (tipo === 'SESIONES') seccionConsultas(L, consultas, true);
+  if (tipo === 'EVOLUCION') { seccionEvolucion(L, consultas); seccionConsultas(L, consultas, false); }
+  if (tipo === 'TAREAS') seccionTareas(L, tareas);
+  if (tipo === 'TRATAMIENTOS') seccionTratamientos(L, tratamientos);
+
+  decorar(doc, { paciente, terapeuta, info });
+  return doc;
+}
+
+function seccionPaciente(L, p) {
+  L.titulo('Datos del paciente');
+  L.datos([
+    ['Nombre completo', p.nombreCompleto],
+    ['Documento', p.documento],
+    ['Fecha de nacimiento', `${fecha(p.fechaNacimiento)} (${edad(p.fechaNacimiento)} años)`],
+    ['Género', p.genero], ['Estado civil', p.estadoCivil], ['Ocupación', p.ocupacion],
+    ['Teléfono', p.telefono], ['Email', p.email], ['Dirección', p.direccion],
+    ['Contacto de emergencia', [p.emergenciaNombre, p.emergenciaTelefono].filter(Boolean).join(' · ')],
+    ['Estado', et(p.estado)],
+    ['Primer ingreso', fecha(p.fechaPrimerIngreso)],
+    ['Última sesión', fecha(p.fechaUltimaSesion)],
+  ]);
+  L.subtitulo('Información clínica');
+  L.datos([
+    ['Motivo de consulta inicial', p.motivoConsultaInicial],
+    ['Antecedentes', p.antecedentes],
+    ['Medicación actual', p.medicacionActual],
+    ['Alergias', p.alergias],
+    ['Diagnóstico preliminar', p.diagnosticoPreliminar],
+  ]);
+}
+
+function seccionPermiso(L, p) {
+  L.titulo('Consentimiento informado');
+  const pm = p.permiso || {};
+  if (pm.estado !== 'FIRMADO') {
+    L.parrafo('El consentimiento informado figura como PENDIENTE de firma.', { color: [166, 106, 0] });
+    return;
+  }
+  L.datos([
+    ['Estado', 'Firmado'],
+    ['Firmado por', pm.firmaNombre],
+    ['Fecha de firma', fecha(pm.fechaFirma)],
+    ['Versión del documento', pm.version],
+  ]);
+  if (pm.texto) L.parrafo(pm.texto, { tam: 8.5, color: APAGADO });
+}
+
+function seccionConsultas(L, consultas, detallado) {
+  L.titulo('Historial de consultas');
+  if (!consultas.length) {
+    L.parrafo('No hay consultas registradas en este periodo.', { color: APAGADO, estilo: 'italic' });
+    return;
+  }
+  if (!detallado) {
+    L.tabla(['Nº', 'Fecha', 'Modalidad', 'Duración', 'Estado emocional'],
+      consultas.map((c) => [c.numeroSesion, fechaHora(c.fechaHora), et(c.modalidad),
+        c.duracionMin + ' min', c.estadoEmocional || '—']));
+    return;
+  }
+  consultas.forEach((c, i) => {
+    if (i > 0) L.salto(2);
+    L.subtitulo(`Sesión ${c.numeroSesion} · ${fechaHora(c.fechaHora)}`);
+    L.chips([et(c.modalidad), `${c.duracionMin} min`, c.estadoEmocional,
+      typeof c.escalaAnimo === 'number' ? `Ánimo ${c.escalaAnimo}/10` : null]);
+    if (c.motivo) L.datos([['Motivo del día', c.motivo]]);
+    L.parrafo('Evolución clínica', { tam: 8, color: APAGADO });
+    L.notas(c.notas);
+    if (c.observaciones) {
+      L.parrafo('Observaciones', { tam: 8, color: APAGADO });
+      L.notas(c.observaciones);
+    }
+    if (c.proximaCita) L.parrafo(`Próxima cita: ${fechaHora(c.proximaCita)}`, { tam: 8.5, color: APAGADO });
+    L.parrafo(`Última modificación: ${fechaHora(c.actualizadoEn)}`, { tam: 7.5, color: [138, 151, 147] });
+  });
+}
+
+function seccionTratamientos(L, tratamientos) {
+  L.titulo('Tratamientos');
+  if (!tratamientos.length) {
+    L.parrafo('No hay tratamientos registrados.', { color: APAGADO, estilo: 'italic' });
+    return;
+  }
+  for (const t of tratamientos) {
+    L.subtitulo(t.nombre);
+    L.chips([et(t.estado), t.enfoque, t.frecuencia]);
+    L.datos([
+      ['Inicio', fecha(t.fechaInicio)],
+      ['Fin estimado', fecha(t.fechaFinEstimada)],
+      ['Cierre', t.fechaCierre ? fecha(t.fechaCierre) : null],
+    ]);
+    if (t.descripcion) { L.parrafo('Enfoque', { tam: 8, color: APAGADO }); L.notas(t.descripcion); }
+    if (t.notas) { L.parrafo('Notas', { tam: 8, color: APAGADO }); L.notas(t.notas); }
+    L.salto(2);
+  }
+}
+
+function seccionTareas(L, tareas) {
+  L.titulo('Tareas asignadas');
+  if (!tareas.length) {
+    L.parrafo('No hay tareas asignadas.', { color: APAGADO, estilo: 'italic' });
+    return;
+  }
+  const ahora = new Date();
+  L.tabla(['Tarea', 'Asignada', 'Límite', 'Estado', 'Comentarios'],
+    tareas.map((t) => {
+      const vencida = t.fechaLimite && new Date(t.fechaLimite) < ahora &&
+        !['COMPLETADA', 'NO_REALIZADA'].includes(t.estado);
+      return [
+        t.titulo,
+        fecha(t.fechaAsignacion),
+        t.fechaLimite ? fecha(t.fechaLimite) + (vencida ? ' (vencida)' : '') : '—',
+        et(t.estado),
+        t.feedbackTerapeuta || t.comentarioPaciente || '—',
+      ];
+    }));
+}
+
+function seccionEvolucion(L, consultas) {
+  L.titulo('Evolución clínica');
+  if (!consultas.length) {
+    L.parrafo('Sin sesiones en el periodo.', { color: APAGADO, estilo: 'italic' });
+    return;
+  }
+  const serie = consultas.filter((c) => typeof c.escalaAnimo === 'number');
+  L.grafico(serie);
+  for (const c of consultas) {
+    const linea = `${fecha(c.fechaHora)} — Sesión ${c.numeroSesion}` +
+      (c.estadoEmocional ? ` · ${c.estadoEmocional}` : '') +
+      (typeof c.escalaAnimo === 'number' ? ` · ánimo ${c.escalaAnimo}/10` : '');
+    L.parrafo(linea, { tam: 9, estilo: 'bold' });
+    if (c.notas) {
+      const resumen = c.notas.replace(/\n+/g, ' ').replace(/[*-]/g, '').trim();
+      L.parrafo(resumen.length > 180 ? resumen.slice(0, 180) + '…' : resumen,
+        { tam: 8.5, color: APAGADO, sangria: 4 });
+    }
+  }
+}
+
+/** Genera el PDF, lo registra y lo guarda (con el archivo si hay sitio). */
+async function crearReporte(tipo, parametros) {
+  if (!hayJsPdf()) throw new Error('SIN_JSPDF');
+  const p = pacienteActual();
+  const doc = componerReporte(tipo, p, parametros);
+  const base64 = doc.output('datauristring');
+  const blob = doc.output('blob');
+
+  const slug = p.nombreCompleto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase().slice(0, 40);
+  const registro = {
+    id: uid(), pacienteId: p.id, tipo, titulo: TITULOS_REPORTE[tipo],
+    parametros: JSON.stringify(parametros),
+    nombreArchivo: `${tipo.toLowerCase()}-${slug}-${paraInput(new Date())}.pdf`,
+    tamano: blob.size, generadoPorId: sesion.usuario.id,
+    creadoEn: new Date().toISOString(), pdf: base64, regenerable: false,
+  };
+
+  try {
+    await guardar('reportes', registro);
+  } catch (e) {
+    if (e.message !== 'CUOTA') throw e;
+    // Sin sitio para el archivo: se guarda la ficha del reporte y se regenera al pedirlo
+    registro.pdf = null;
+    registro.regenerable = true;
+    BD.reportes = BD.reportes.filter((r) => r.id !== registro.id);
+    await guardar('reportes', registro);
+    nota('No cabía el PDF en el almacenamiento: se guardó la ficha del reporte y se regenerará al abrirlo.', 'ambar');
+  }
+  return { registro, blob };
+}
+
+/** Devuelve el blob del reporte: guardado o regenerado al vuelo. */
+function blobDeReporte(reporte) {
+  if (reporte.pdf) {
+    const base64 = reporte.pdf.split(',')[1];
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+  const p = buscarId('pacientes', reporte.pacienteId);
+  const doc = componerReporte(reporte.tipo, p, JSON.parse(reporte.parametros || '{}'));
+  return doc.output('blob');
+}
+// ---------------------------------------------------------------------------
+// 8. Reportes y envíos
+//
+// Qué se puede y qué no desde un navegador, sin rodeos:
+//   · El PDF se genera aquí mismo, completo.
+//   · El email NO puede salir solo: una página web no habla SMTP. Se abre el
+//     cliente de correo con el mensaje escrito y se descarga el PDF para
+//     adjuntarlo.
+//   · WhatsApp tampoco adjunta archivos desde un enlace. Se abre la
+//     conversación con el texto redactado y el PDF descargado.
+// Por eso los envíos nacen en estado "Preparado" y se confirman a mano.
+// ---------------------------------------------------------------------------
+
+const TIPOS_REPORTE = [
+  ['COMPLETO', 'Reporte completo del paciente'],
+  ['SESIONES', 'Sesiones por rango de fechas'],
+  ['EVOLUCION', 'Evolución clínica'],
+  ['TAREAS', 'Tareas asignadas'],
+  ['TRATAMIENTOS', 'Tratamientos'],
+];
+
+const formReporte = { tipo: 'COMPLETO', desde: '', hasta: '' };
+
+function pestanaReportes(p) {
+  const lista = porPaciente('reportes', p.id)
+    .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn));
+
+  return `
+  <div class="tarjeta p5">
+    <h2>Generar un reporte</h2>
+    <p class="apagado mt2" style="font-size:13px">
+      El PDF se compone con el encabezado del consultorio, la numeración de páginas
+      y la firma del terapeuta.
+    </p>
+    <div class="linea mt4">
+      <div class="crecer">
+        ${campo({ etiqueta: 'Tipo de reporte', control: selector('r-tipo', TIPOS_REPORTE, formReporte.tipo) })}
+      </div>
+      ${campo({ etiqueta: 'Desde', control: entrada('r-desde', formReporte.desde, 'type="date"') })}
+      ${campo({ etiqueta: 'Hasta', control: entrada('r-hasta', formReporte.hasta, 'type="date"') })}
+      ${boton('Generar PDF', 'generar-reporte', { ico: 'documento' })}
+    </div>
+    <p class="pequeno apagado mt2">
+      ${['SESIONES', 'EVOLUCION', 'COMPLETO'].includes(formReporte.tipo)
+        ? 'Sin fechas se incluyen todas las sesiones registradas.'
+        : 'Este tipo de reporte no usa el rango de fechas.'}
+    </p>
+  </div>
+
+  <div class="mt6">
+    <h2 class="mb3">Reportes generados</h2>
+    ${lista.length === 0
+      ? vacioEstado('Todavía no hay reportes',
+        'Genera el primero desde el panel de arriba; quedará guardado con su historial de envíos.')
+      : `<div class="pila">${lista.map((r) => tarjetaReporte(r)).join('')}</div>`}
+  </div>`;
+}
+
+function tarjetaReporte(r) {
+  const envios = BD.envios.filter((e) => e.reporteId === r.id)
+    .sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn));
+  const d = `data-id="${r.id}"`;
+  return `
+  <div class="tarjeta p4">
+    <div class="entre">
+      <div>
+        <div class="chips">
+          <p style="font-weight:500">${esc(r.titulo)}</p>
+          ${insignia(r.tipo, '')}
+          ${r.regenerable ? '<span class="ins ambar">Se regenera al abrir</span>' : ''}
+        </div>
+        <p class="pequeno apagado mt2">
+          ${fechaHora(r.creadoEn)} · ${esc(usuario(r.generadoPorId)?.nombre || '—')} · ${Math.round((r.tamano || 0) / 1024)} KB
+        </p>
+      </div>
+      <div class="fila-acciones">
+        ${boton('Ver', 'ver-reporte', { clase: 'fan', ico: 'ojo', datos: d })}
+        ${boton('Descargar', 'descargar-reporte', { clase: 'fan', ico: 'descargar', datos: d })}
+        ${boton('Enviar por email', 'enviar', { clase: 'sec', ico: 'correo', datos: `${d} data-canal="EMAIL"` })}
+        ${boton('Enviar por WhatsApp', 'enviar', { clase: 'sec', ico: 'chat', datos: `${d} data-canal="WHATSAPP"` })}
+      </div>
+    </div>
+    ${envios.length ? `<ul class="envios">${envios.map((e) => `
+      <li>
+        <span class="chips">
+          ${insignia(e.estado)}
+          <span class="apagado">${et(e.canal)} · ${esc(e.destinatario)} · ${fechaHora(e.creadoEn)}${e.intentos > 1 ? ' · ' + e.intentos + ' intentos' : ''}</span>
+        </span>
+        <span class="chips">
+          ${e.error ? `<span class="err">${esc(e.error)}</span>` : ''}
+          ${e.estado !== 'ENVIADO' ? boton('Marcar como enviado', 'marcar-enviado', { clase: 'fan', datos: `data-id="${e.id}"` }) : ''}
+          ${e.estado !== 'ENVIADO' ? boton('Reintentar', 'reintentar', { clase: 'fan', ico: 'reintentar', datos: `data-id="${e.id}"` }) : ''}
+        </span>
+      </li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+async function generarReporteDesdeFormulario() {
+  formReporte.tipo = $('#r-tipo').value;
+  formReporte.desde = $('#r-desde').value;
+  formReporte.hasta = $('#r-hasta').value;
+
+  if (!hayJsPdf()) {
+    nota('La librería de PDF no cargó (¿sin conexión la primera vez?). Recarga la página con internet o usa la impresión del navegador.', 'granate');
+    return;
+  }
+  try {
+    const { registro, blob } = await crearReporte(formReporte.tipo, {
+      desde: formReporte.desde || undefined,
+      hasta: formReporte.hasta || undefined,
+    });
+    render();
+    nota('PDF generado. Ya puedes verlo o prepararlo para enviar.');
+    // Lo natural tras generar es mirarlo
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    nota('No se pudo generar el PDF: ' + (e.message || e), 'granate');
+  }
+}
+
+function abrirReporte(id, descargar) {
+  const r = buscarId('reportes', id);
+  try {
+    const blob = blobDeReporte(r);
+    if (descargar) return descargarBlob(blob, r.nombreArchivo);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    nota('No se pudo abrir el PDF: ' + (e.message || e), 'granate');
+  }
+}
+
+// --- Modal de envío ---------------------------------------------------------
+
+const normalizarTelefono = (tel) => String(tel || '').replace(/[^\d]/g, '');
+
+function variablesMensaje(reporte, paciente) {
+  return {
+    paciente: paciente.nombreCompleto.split(' ')[0],
+    terapeuta: sesion.usuario.firmaNombre || sesion.usuario.nombre,
+    clinica: clinica().nombre,
+    reporte: reporte.titulo,
+    fecha: fecha(reporte.creadoEn),
+    enlace: '',
+  };
+}
+
+function modalEnviar(reporteId, canal) {
+  const reporte = buscarId('reportes', reporteId);
+  const p = buscarId('pacientes', reporte.pacienteId);
+  const esEmail = canal === 'EMAIL';
+  const vars = variablesMensaje(reporte, p);
+  const plantillas = BD.plantillas.filter((x) => x.canal === canal);
+  const porDefecto = plantillas.find((x) => x.porDefecto) || plantillas[0];
+  const mensajeInicial = porDefecto
+    ? aplicarPlantilla(porDefecto.cuerpo, vars)
+    : `Hola ${vars.paciente}, te envío el documento «${reporte.titulo}».`;
+  const asuntoInicial = porDefecto?.asunto
+    ? aplicarPlantilla(porDefecto.asunto, vars)
+    : `${reporte.titulo} — ${p.nombreCompleto}`;
+
+  abrirModal({
+    titulo: esEmail ? 'Enviar el reporte por email' : 'Enviar el reporte por WhatsApp',
+    descripcion: reporte.titulo,
+    ancho: 'ancho',
+    cuerpo: `
+      <div class="rejilla c2" style="align-items:start">
+        <div class="rejilla">
+          ${campo({
+            etiqueta: esEmail ? 'Destinatario' : 'Número de WhatsApp',
+            ayuda: esEmail ? 'Por defecto el email de la ficha; puedes escribir otro.'
+              : 'Con prefijo internacional, por ejemplo +34600111222.',
+            control: entrada('en-destino', esEmail ? (p.email || '') : (p.telefono || ''),
+              esEmail ? 'type="email" placeholder="paciente@correo.com"' : 'type="tel" placeholder="+34600111222"'),
+          })}
+          ${esEmail ? campo({ etiqueta: 'Asunto', control: entrada('en-asunto', asuntoInicial) }) : ''}
+          ${plantillas.length ? campo({
+            etiqueta: 'Plantilla',
+            control: selector('en-plantilla', plantillas.map((x) => [x.id, x.nombre]), porDefecto?.id || '', 'Escribir desde cero'),
+          }) : ''}
+          ${campo({ etiqueta: 'Mensaje', control: area('en-mensaje', mensajeInicial, esEmail ? 8 : 5) })}
+          <div class="aviso">
+            ${esEmail
+              ? 'Desde el navegador no se puede enviar el correo directamente. Al continuar se descarga el PDF y se abre tu programa de correo con el mensaje escrito: solo tienes que adjuntar el archivo y darle a enviar.'
+              : 'WhatsApp no permite adjuntar archivos desde un enlace. Al continuar se descarga el PDF y se abre la conversación con el mensaje escrito: adjunta el archivo desde el clip.'}
+          </div>
+          <div id="en-resultado"></div>
+        </div>
+        <aside>
+          <span class="et" style="display:block;font-size:11px;color:var(--apagado);margin-bottom:4px">Vista previa</span>
+          <iframe id="en-previa" title="Vista previa del reporte"
+            style="width:100%;height:400px;border:1px solid var(--borde);border-radius:6px;background:#fff"></iframe>
+          <p class="pequeno apagado mt2">${esc(reporte.nombreArchivo)}</p>
+        </aside>
+      </div>`,
+    pie: `${boton('Cerrar', 'cerrar-modal', { clase: 'sec' })}
+          ${boton('Copiar mensaje', 'copiar-mensaje', { clase: 'sec', ico: 'copiar' })}
+          ${boton(esEmail ? 'Descargar PDF y abrir el correo' : 'Descargar PDF y abrir WhatsApp',
+            'preparar-envio', { ico: esEmail ? 'correo' : 'chat', datos: `data-id="${reporteId}" data-canal="${canal}"` })}`,
+    alAbrir: (velo) => {
+      // Vista previa
+      try {
+        const url = URL.createObjectURL(blobDeReporte(reporte));
+        $('#en-previa', velo).src = url;
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+      } catch {
+        $('#en-previa', velo).replaceWith(Object.assign(document.createElement('p'), {
+          className: 'apagado', textContent: 'No se pudo cargar la vista previa.',
+        }));
+      }
+      // Cambio de plantilla
+      $('#en-plantilla', velo)?.addEventListener('change', (e) => {
+        const pl = buscarId('plantillas', e.target.value);
+        if (!pl) return;
+        $('#en-mensaje').value = aplicarPlantilla(pl.cuerpo, vars);
+        if (esEmail && pl.asunto) $('#en-asunto').value = aplicarPlantilla(pl.asunto, vars);
+      });
+    },
+  });
+}
+
+async function prepararEnvio(reporteId, canal) {
+  const reporte = buscarId('reportes', reporteId);
+  const destino = $('#en-destino').value.trim();
+  const mensaje = $('#en-mensaje').value;
+  const asunto = $('#en-asunto')?.value || reporte.titulo;
+
+  if (!destino) {
+    $('#en-resultado').innerHTML = '<div class="aviso granate">Falta el destinatario.</div>';
+    return;
+  }
+
+  // 1) El PDF se descarga siempre: es lo que hay que adjuntar
+  descargarBlob(blobDeReporte(reporte), reporte.nombreArchivo);
+
+  // 2) Queda registrado como preparado; el envío real lo confirma la persona
+  await guardar('envios', {
+    id: uid(), reporteId, pacienteId: reporte.pacienteId, canal,
+    destinatario: destino, asunto: canal === 'EMAIL' ? asunto : null, mensaje,
+    estado: 'PREPARADO', error: 'Pendiente de confirmar el envío manual', intentos: 1,
+    enviadoPorId: sesion.usuario.id, creadoEn: new Date().toISOString(),
+  });
+
+  $('#en-resultado').innerHTML = `<div class="aviso verde">
+    PDF descargado. ${canal === 'EMAIL' ? 'Se abre tu programa de correo' : 'Se abre WhatsApp'} con el
+    mensaje escrito: adjunta el archivo y envíalo. Después marca el envío como enviado en el historial.
+  </div>`;
+
+  // 3) El canal se abre con un respiro: lanzarlo a la vez que la descarga
+  //    hace que algunos navegadores cancelen el archivo.
+  setTimeout(() => {
+    if (canal === 'EMAIL') {
+      window.location.href =
+        `mailto:${encodeURIComponent(destino)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(mensaje)}`;
+    } else {
+      window.open(`https://wa.me/${normalizarTelefono(destino)}?text=${encodeURIComponent(mensaje)}`,
+        '_blank', 'noopener');
+    }
+  }, 600);
+}
+
+async function marcarEnviado(envioId) {
+  const e = buscarId('envios', envioId);
+  e.estado = 'ENVIADO';
+  e.error = null;
+  await guardar('envios', e);
+  render();
+  nota('Envío marcado como enviado.');
+}
+
+async function reintentarEnvio(envioId) {
+  const e = buscarId('envios', envioId);
+  e.intentos = (e.intentos || 1) + 1;
+  await guardar('envios', e);
+  modalEnviar(e.reporteId, e.canal);
+}
+// ---------------------------------------------------------------------------
+// 9. Configuración, copias de seguridad y arranque
+// ---------------------------------------------------------------------------
+
+function vistaConfiguracion() {
+  const info = clinica();
+  const modos = {
+    indexeddb: ['verde', 'IndexedDB — los datos persisten en este navegador'],
+    localstorage: ['ambar', 'Almacenamiento simple del navegador — capacidad limitada'],
+    memoria: ['granate', 'Solo memoria — se pierde al cerrar la pestaña'],
+  }[Almacen.modo];
+
+  return `
+  <h1>Configuración</h1>
+  <p class="apagado mt2" style="font-size:13px">
+    Sesión de ${esc(sesion.usuario.nombre)} · ${sesion.usuario.rol === 'ADMIN' ? 'Administración' : 'Terapeuta'}
+  </p>
+
+  <div class="pila mt6 estrecho">
+    <div class="tarjeta p5">
+      <div class="entre mb3">
+        <h2>Dónde se guardan los datos</h2>
+        <span class="ins ${modos[0]}">${esc(modos[1].split(' — ')[0])}</span>
+      </div>
+      <p class="apagado" style="font-size:13px">${esc(modos[1])}</p>
+      <p class="apagado mt3" style="font-size:13px">
+        Todo vive en este equipo y en este navegador. No hay servidor: nadie más puede verlo,
+        pero tampoco hay copia de seguridad automática. Si borras los datos de navegación o
+        cambias de ordenador, se pierde. Descarga una copia con regularidad.
+      </p>
+      <div class="fila-acciones mt4">
+        ${boton('Descargar copia de seguridad', 'exportar', { clase: 'sec', ico: 'descargar' })}
+        ${boton('Restaurar desde archivo', 'importar', { clase: 'sec' })}
+        ${boton('Borrar todos los datos', 'borrar-todo', { clase: 'peligro' })}
+      </div>
+      <input type="file" id="archivo-importar" accept="application/json" hidden>
+    </div>
+
+    <div class="tarjeta p5">
+      <h2 class="mb3">Datos del consultorio</h2>
+      <p class="apagado mb4" style="font-size:13px">Aparecen en el encabezado y el pie de cada PDF.</p>
+      <form id="form-clinica" class="rejilla">
+        ${campo({ etiqueta: 'Nombre', control: entrada('cl-nombre', info.nombre) })}
+        ${campo({ etiqueta: 'Subtítulo', control: entrada('cl-subtitulo', info.subtitulo || '') })}
+        ${campo({ etiqueta: 'Contacto', control: entrada('cl-contacto', info.contacto || '') })}
+        ${campo({
+          etiqueta: 'Tu firma en los reportes',
+          ayuda: 'Nombre y titulación que se imprime en el pie del PDF.',
+          control: entrada('cl-firma', sesion.usuario.firmaNombre || sesion.usuario.nombre),
+        })}
+        ${campo({ etiqueta: 'Nº de colegiado', control: entrada('cl-licencia', sesion.usuario.licencia || '') })}
+        <div><button class="btn" type="submit">Guardar</button></div>
+      </form>
+    </div>
+
+    <div class="tarjeta p5">
+      <h2 class="mb3">Plantillas de mensaje</h2>
+      <p class="apagado mb4" style="font-size:13px">
+        Variables disponibles: {{paciente}}, {{terapeuta}}, {{reporte}}, {{fecha}}, {{clinica}}.
+      </p>
+      ${BD.plantillas.map((pl) => `
+        <div style="border-top:1px solid var(--borde);padding-top:16px;margin-top:16px">
+          <div class="chips mb3">
+            <h3>${esc(pl.nombre)}</h3>
+            ${insignia(pl.canal, '')}
+            ${pl.porDefecto ? '<span class="ins verde">Por defecto</span>' : ''}
+          </div>
+          ${pl.canal === 'EMAIL'
+            ? campo({ etiqueta: 'Asunto', clase: 'mb3', control: entrada('pl-asunto-' + pl.id, pl.asunto || '') })
+            : ''}
+          ${campo({ etiqueta: 'Cuerpo', control: area('pl-cuerpo-' + pl.id, pl.cuerpo, 4) })}
+          <div class="mt3">${boton('Guardar plantilla', 'guardar-plantilla', { clase: 'sec', datos: `data-id="${pl.id}"` })}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="tarjeta p5">
+      <h2 class="mb3">Privacidad</h2>
+      <p class="apagado" style="font-size:13px">
+        Esta aplicación maneja datos de salud, que son datos de categoría especial. Funciona sin
+        servidor, lo que reduce la superficie de exposición, pero no la elimina: quien tenga
+        acceso al equipo tiene acceso al navegador. No sustituye una evaluación de cumplimiento
+        del RGPD ni de HIPAA. Cifra el disco, bloquea la sesión del sistema y guarda las copias
+        de seguridad en un lugar protegido.
+      </p>
+    </div>
+  </div>`;
+}
+
+async function guardarClinica(e) {
+  e.preventDefault();
+  const info = clinica();
+  Object.assign(info, {
+    id: 'clinica',
+    nombre: $('#cl-nombre').value.trim(),
+    subtitulo: $('#cl-subtitulo').value.trim(),
+    contacto: $('#cl-contacto').value.trim(),
+  });
+  await guardar('config', info);
+  sesion.usuario.firmaNombre = $('#cl-firma').value.trim();
+  sesion.usuario.licencia = $('#cl-licencia').value.trim();
+  await guardar('usuarios', sesion.usuario);
+  nota('Configuración guardada.');
+}
+
+async function guardarPlantilla(id) {
+  const pl = buscarId('plantillas', id);
+  pl.cuerpo = $('#pl-cuerpo-' + id).value;
+  const asunto = $('#pl-asunto-' + id);
+  if (asunto) pl.asunto = asunto.value;
+  await guardar('plantillas', pl);
+  nota(`Plantilla «${pl.nombre}» guardada.`);
+}
+
+// --- Copias de seguridad ----------------------------------------------------
+
+function exportar() {
+  const copia = { version: 1, exportadoEn: new Date().toISOString() };
+  for (const c of COLECCIONES) copia[c] = BD[c];
+  const blob = new Blob([JSON.stringify(copia, null, 2)], { type: 'application/json' });
+  descargarBlob(blob, `historias-clinicas-${paraInput(new Date())}.json`);
+}
+
+async function importar(archivo) {
+  const texto = await archivo.text();
+  let copia;
+  try {
+    copia = JSON.parse(texto);
+  } catch {
+    return nota('El archivo no es una copia válida.', 'granate');
+  }
+  if (!copia.pacientes) return nota('El archivo no contiene pacientes.', 'granate');
+  if (!confirm('Restaurar sustituye todos los datos actuales. ¿Continuar?')) return;
+
+  for (const c of COLECCIONES) {
+    BD[c] = Array.isArray(copia[c]) ? copia[c] : [];
+    await Almacen.persistir(c).catch(() => {});
+  }
+  // La sesión apunta a un objeto que ya no existe: hay que volver a entrar
+  sesion.usuario = null;
+  render();
+  alert('Datos restaurados. Vuelve a entrar con tus credenciales.');
+}
+
+async function borrarTodo() {
+  if (!confirm('Se borran todas las fichas, sesiones y reportes de este navegador. No hay vuelta atrás. ¿Seguro?')) return;
+  if (!confirm('Última confirmación: ¿descargaste antes una copia de seguridad?')) return;
+  await Almacen.borrarTodo();
+  await sembrar();
+  sesion.usuario = null;
+  render();
+}
+
+// --- Delegación de eventos --------------------------------------------------
+
+const ACCIONES = {
+  ir: (el) => irA(el.dataset.vista),
+  salir: () => { sesion.usuario = null; render(); },
+  ficha: (el) => irA('ficha', { pacienteId: el.dataset.id, pestana: 'datos' }),
+  pestana: (el) => { vista.pestana = el.dataset.p; consultaAbierta = null; render(); },
+  'ir-reportes': () => { vista.pestana = 'reportes'; render(); },
+  'cerrar-modal': () => cerrarModal(),
+
+  'nuevo-paciente': () => modalPaciente(null),
+  'editar-paciente': () => modalPaciente(pacienteActual()),
+  archivar: async () => {
+    const p = pacienteActual();
+    const mensaje = p.archivado
+      ? '¿Devolver esta ficha al listado activo?'
+      : 'Archivar retira la ficha del listado activo. El historial se conserva íntegro y puedes recuperarla cuando quieras.';
+    if (!confirm(mensaje)) return;
+    p.archivado = !p.archivado;
+    await guardar('pacientes', p);
+    render();
+  },
+
+  'nueva-consulta': () => modalNuevaConsulta(),
+  'abrir-consulta': (el) => {
+    consultaAbierta = consultaAbierta === el.dataset.id ? null : el.dataset.id;
+    render();
+  },
+  'guardar-consulta': (el) => guardarConsulta(el.dataset.id, false),
+  'historial-consulta': (el) => mostrarHistorial(el.dataset.id),
+
+  'nuevo-tratamiento': () => modalTratamiento(null),
+  'editar-tratamiento': (el) => modalTratamiento(buscarId('tratamientos', el.dataset.id)),
+  'estado-tratamiento': (el) => cambiarEstadoTratamiento(el.dataset.id, el.dataset.estado),
+
+  'nueva-tarea': () => modalTarea(null),
+  'editar-tarea': (el) => modalTarea(buscarId('tareas', el.dataset.id)),
+
+  'generar-reporte': () => generarReporteDesdeFormulario(),
+  'ver-reporte': (el) => abrirReporte(el.dataset.id, false),
+  'descargar-reporte': (el) => abrirReporte(el.dataset.id, true),
+  enviar: (el) => modalEnviar(el.dataset.id, el.dataset.canal),
+  'preparar-envio': (el) => prepararEnvio(el.dataset.id, el.dataset.canal),
+  'copiar-mensaje': async () => {
+    const ok = await copiar($('#en-mensaje').value);
+    $('#en-resultado').innerHTML = ok
+      ? '<div class="aviso verde">Mensaje copiado.</div>'
+      : '<div class="aviso ambar">No se pudo copiar. Selecciona el texto y cópialo a mano.</div>';
+  },
+  'marcar-enviado': (el) => marcarEnviado(el.dataset.id),
+  reintentar: (el) => reintentarEnvio(el.dataset.id),
+
+  exportar: () => exportar(),
+  importar: () => $('#archivo-importar').click(),
+  'borrar-todo': () => borrarTodo(),
+  'guardar-plantilla': (el) => guardarPlantilla(el.dataset.id),
+};
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-ac]');
+  if (!el || el.tagName === 'SELECT') return;
+  const accion = ACCIONES[el.dataset.ac];
+  if (!accion) return;
+  e.preventDefault();
+  accion(el);
+});
+
+document.addEventListener('submit', (e) => {
+  const id = e.target.id;
+  if (id === 'form-login') return entrar(e);
+  if (id === 'form-permiso') return guardarPermiso(e);
+  if (id === 'form-clinica') return guardarClinica(e);
+});
+
+// Filtros: se aplican al escribir, sin botón de buscar
+document.addEventListener('input', (e) => {
+  const id = e.target.id;
+  if (id === 'f-buscar') {
+    filtroPacientes.buscar = e.target.value;
+    clearTimeout(document._tf);
+    document._tf = setTimeout(() => {
+      const pos = e.target.selectionStart;
+      render();
+      const nuevo = $('#f-buscar');
+      if (nuevo) { nuevo.focus(); nuevo.setSelectionRange(pos, pos); }
+    }, 250);
+  }
+});
+
+document.addEventListener('change', async (e) => {
+  const id = e.target.id;
+  if (id === 'f-estado') { filtroPacientes.estado = e.target.value; render(); }
+  if (id === 'f-archivados') { filtroPacientes.archivados = e.target.checked; render(); }
+  if (id === 'ft-estado') { filtroTareas.estado = e.target.value; render(); }
+  if (id === 'ft-vencidas') { filtroTareas.vencidas = e.target.checked; render(); }
+  if (id === 'ftf-estado') { filtroTareaFicha = e.target.value; render(); }
+  if (id === 'fc-desde') { filtroConsultas.desde = e.target.value; render(); }
+  if (id === 'fc-hasta') { filtroConsultas.hasta = e.target.value; render(); }
+  if (id === 'fc-modalidad') { filtroConsultas.modalidad = e.target.value; render(); }
+  if (id === 'r-tipo') { formReporte.tipo = e.target.value; render(); }
+  if (id === 'archivo-importar' && e.target.files[0]) importar(e.target.files[0]);
+
+  // Cambio rápido de estado de una tarea desde el listado
+  if (e.target.dataset?.ac === 'estado-tarea') {
+    const t = buscarId('tareas', e.target.dataset.id);
+    const antes = { ...t };
+    t.estado = e.target.value;
+    await guardar('tareas', t);
+    await auditar('Tarea', t.id, antes, { estado: t.estado });
+    render();
+  }
+});
+
+// Aviso al cerrar si hay cambios sin guardar en una consulta
+window.addEventListener('beforeunload', (e) => {
+  if ($('#estado-guardado')?.textContent.includes('sin guardar')) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// --- Arranque ---------------------------------------------------------------
+
+(async function iniciar() {
+  await Almacen.iniciar();
+  await Almacen.cargarTodo();
+  if (!BD.usuarios.length) await sembrar();
+  render();
+})();
+</script>
+</body>
+</html>
